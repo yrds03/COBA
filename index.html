@@ -189,7 +189,10 @@ const formatRp = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', 
 
 function pastikanDataAman(rawData) {
     let aman = rawData || {};
-    ['produk','pelanggan','supplier','penjualan','penjualan_detail','stok','keuangan','akun'].forEach(k => { if(!aman[k] || !Array.isArray(aman[k])) aman[k] = []; });
+    // Kita tambahkan pembelian dan pembelian_detail ke dalam daftar pengaman
+    ['produk','pelanggan','supplier','penjualan','penjualan_detail','pembelian','pembelian_detail','stok','keuangan','akun'].forEach(k => { 
+        if(!aman[k] || !Array.isArray(aman[k])) aman[k] = []; 
+    });
     return aman;
 }
 
@@ -320,10 +323,10 @@ async function syncDataLiveBackground() {
     let el = document.getElementById('sync-status'); if(el) el.innerHTML = '<i class="fa-solid fa-rotate fa-spin text-blue-500"></i> Syncing...'; 
     
     // TARIK PENGATURAN CLOUD DULU
-    requestAPI('tarikPengaturan', {}).then(res => {
+    await requestAPI('tarikPengaturan', {}).then(res => {
         if(res && res.status && res.data) {
             for(let key in res.data) { localStorage.setItem(key, res.data[key]); }
-            if(state.activeMenu === 'pengaturan') muatPengaturanLokal();
+            muatPengaturanLokal(); // Panggil ini setelah data diset ke localStorage
             if(state.activeMenu === 'datamaster') renderModulAktif();
         }
     });
@@ -1587,8 +1590,39 @@ function renderChartLaporan() {
   let canvas = document.getElementById('chartLaporanLaba'); if(!canvas) return; if(chartLaporan !== null) chartLaporan.destroy(); let ctx = canvas.getContext('2d'); chartLaporan = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Omset Kotor', data: dataPenjualan, backgroundColor: '#3b82f6', borderRadius: 4 }, { label: 'HPP (Modal)', data: dataModal, backgroundColor: '#f43f5e', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false } }); 
 }
 
-function exportDataCSV(tipe) { let csv = ""; let fileName = ""; if(tipe === 'penjualan') { if(!state.data.penjualan || state.data.penjualan.length === 0) return showInlineNotif('error', 'Data kosong!'); csv = "Invoice,Waktu,Pelanggan,Metode,Total,Status,Kasir,Cabang\n"; state.data.penjualan.forEach(p => { csv += `${p.ID_Invoice},${p.Waktu},${p.ID_Pelanggan},${p.Metode_Pembayaran},${p.Total_Akhir},${p.Status},${p.Kasir},${p.Cabang||state.cabang}\n`; }); fileName = "Data_Penjualan.csv"; } else if(tipe === 'pembelian') { if(!state.data.pembelian || state.data.pembelian.length === 0) return showInlineNotif('error', 'Data kosong!'); csv = "PO,Waktu,Supplier,Total Tagihan,Status Bayar,Admin\n"; state.data.pembelian.forEach(p => { csv += `${p.ID_PO},${p.Waktu},${p.ID_Supplier},${p.Total_Tagihan},${p.Status_Bayar},${p.Admin}\n`; }); fileName = "Data_Pembelian.csv"; } else if(tipe === 'stok') { if(!state.data.stok || state.data.stok.length === 0) return showInlineNotif('error', 'Data kosong!'); csv = "ID Stok,Waktu,ID Produk,Pergerakan,Jumlah,Keterangan,Cabang\n"; state.data.stok.forEach(p => { csv += `${p.ID_Stok},${p.Waktu},${p.ID_Produk},${p.Jenis_Pergerakan},${p.Jumlah},${p.Keterangan},${p.Cabang||state.cabang}\n`; }); fileName = "Data_KartuStok.csv"; } else if(tipe === 'keuangan') { if(!state.data.keuangan || state.data.keuangan.length === 0) return showInlineNotif('error', 'Data kosong!'); csv = "Waktu,Ref/ID,Tipe,Nominal,Keterangan,Kasir,Cabang\n"; state.data.keuangan.forEach(p => { csv += `${p.Waktu},${p.ID_Transaksi},${p.Jenis_Arus},${p.Nominal},${p.Keterangan},${p.Kasir},${p.Cabang||state.cabang}\n`; }); fileName = "Data_ArusKas.csv"; } let link = document.createElement("a"); link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + csv)); link.setAttribute("download", fileName); document.body.appendChild(link); link.click(); document.body.removeChild(link); }
-
+function exportDataCSV(tipe) { 
+    let csv = ""; let fileName = ""; 
+    if(tipe === 'penjualan') { 
+        if(!state.data.penjualan || state.data.penjualan.length === 0) return showInlineNotif('error', 'Data kosong!'); 
+        csv = "Invoice,Waktu,Pelanggan,Metode,Total,Status,Kasir,Cabang\n"; 
+        state.data.penjualan.forEach(p => { csv += `${p.ID_Invoice},${p.Waktu},${p.ID_Pelanggan},${p.Metode_Pembayaran},${p.Total_Akhir},${p.Status},${p.Kasir},${p.Cabang||state.cabang}\n`; }); 
+        fileName = "Data_Penjualan.csv"; 
+    } else if(tipe === 'pembelian') { 
+        if(!state.data.pembelian || state.data.pembelian.length === 0) return showInlineNotif('error', 'Data kosong!'); 
+        csv = "PO,Waktu,Supplier,Total Tagihan,Status Bayar,Admin\n"; 
+        state.data.pembelian.forEach(p => { csv += `${p.ID_PO},${p.Waktu},${p.ID_Supplier},${p.Total_Tagihan},${p.Status_Bayar},${p.Admin}\n`; }); 
+        fileName = "Data_Pembelian.csv"; 
+    } else if(tipe === 'stok') { 
+        if(!state.data.stok || state.data.stok.length === 0) return showInlineNotif('error', 'Data kosong!'); 
+        csv = "ID Stok,Waktu,ID Produk,Pergerakan,Jumlah,Keterangan,Cabang\n"; 
+        state.data.stok.forEach(p => { csv += `${p.ID_Stok},${p.Waktu},${p.ID_Produk},${p.Jenis_Pergerakan},${p.Jumlah},${p.Keterangan},${p.Cabang||state.cabang}\n`; }); 
+        fileName = "Data_KartuStok.csv"; 
+    } else if(tipe === 'keuangan') { 
+        if(!state.data.keuangan || state.data.keuangan.length === 0) return showInlineNotif('error', 'Data kosong!'); 
+        csv = "Waktu,Ref/ID,Tipe,Nominal,Keterangan,Kasir,Cabang\n"; 
+        state.data.keuangan.forEach(p => { csv += `${p.Waktu},${p.ID_Transaksi},${p.Jenis_Arus},${p.Nominal},${p.Keterangan},${p.Kasir},${p.Cabang||state.cabang}\n`; }); 
+        fileName = "Data_ArusKas.csv"; 
+    } 
+    
+    let link = document.createElement("a"); 
+    // Pakai encodeURIComponent agar karakter spesial tidak memutus file CSV
+    link.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csv)); 
+    link.setAttribute("download", fileName); 
+    document.body.appendChild(link); 
+    link.click(); 
+    document.body.removeChild(link); 
+}
+  
 // ====================================================================
 // VIEW & FUNGSI: KEUANGAN (ARUS KAS & REKONSILIASI)
 // ====================================================================
@@ -1781,36 +1815,29 @@ function muatPengaturanLokal() {
     let pjk = localStorage.getItem('sanstech_pajak'); if(pjk && document.getElementById('set-pajak')) document.getElementById('set-pajak').value = pjk; 
     let apik = localStorage.getItem('sanstech_api_key'); if(apik && document.getElementById('set-api-key')) document.getElementById('set-api-key').value = apik; 
     let webh = localStorage.getItem('sanstech_webhook'); if(webh && document.getElementById('set-webhook')) document.getElementById('set-webhook').value = webh; 
-}
-
-async function simpanPengaturanLokal() { 
-    let payload = {};
-    // Kita petakan ID HTML (strip) ke Key Database (underscore) dengan akurat
-    let fields = [
-        { id: 'set-nama-toko', key: 'sanstech_nama_toko' },
-        { id: 'set-alamat-toko', key: 'sanstech_alamat_toko' },
-        { id: 'set-struk-header', key: 'sanstech_struk_header' },
-        { id: 'set-struk-footer', key: 'sanstech_struk_footer' },
-        { id: 'set-wa-template', key: 'sanstech_wa_template' },
-        { id: 'set-pajak', key: 'sanstech_pajak' },
-        { id: 'set-api-key', key: 'sanstech_api_key' },
-        { id: 'set-webhook', key: 'sanstech_webhook' }
-    ];
     
-    fields.forEach(f => {
-        let el = document.getElementById(f.id);
-        if(el) { 
-            localStorage.setItem(f.key, el.value); 
-            payload[f.key] = el.value; 
+    // Perbarui dropdown filter cabang secara global jika bukan kasir
+    if(state.role !== 'KASIR') {
+        let savedCabang = JSON.parse(localStorage.getItem('sanstech_list-gudang') || '["Pusat"]'); 
+        if(!savedCabang.includes("Pusat")) savedCabang.unshift("Pusat");
+        let opsiCabangHtml = `<option value="SEMUA">Semua Cabang</option>`; 
+        savedCabang.forEach(c => { opsiCabangHtml += `<option value="${c}">${c}</option>`; });
+        
+        // Update elemen filter stok jika ada di DOM
+        let filterStok = document.getElementById('stok-filter-cabang');
+        if(filterStok) {
+            let currentVal = filterStok.value;
+            filterStok.innerHTML = opsiCabangHtml;
+            filterStok.value = currentVal; // pertahankan pilihan sebelumnya
         }
-    });
-    
-    showInlineNotif('info', 'Menyimpan ke Cloud...');
-    let res = await requestAPI('simpanPengaturan', payload);
-    if(res && res.status) {
-        showInlineNotif('success', 'Pengaturan Permanen Disimpan!'); 
-    } else {
-        showInlineNotif('error', 'Gagal simpan ke server!');
+        
+        // Update elemen filter produk jika ada di DOM
+        let filterProd = document.getElementById('filter-cabang-produk');
+        if(filterProd) {
+            let currentVal = filterProd.value;
+            filterProd.innerHTML = opsiCabangHtml;
+            filterProd.value = currentVal;
+        }
     }
 }
 
@@ -1854,17 +1881,29 @@ function backupDataJSON() {
     }, 500);
 }
 
-// ====================================================================
-// VIEW & FUNGSI: KONFIGURASI DATA MASTER
+/// ====================================================================
+// VIEW & FUNGSI: KONFIGURASI DATA MASTER (PERBAIKAN)
 // ====================================================================
 function viewDataMaster() { 
   let loadList = (idKey, defaultVal, title) => { 
-      let arr = JSON.parse(localStorage.getItem('sanstech_' + idKey) || `["${defaultVal}"]`); 
-      if(!arr.includes(defaultVal)) arr.unshift(defaultVal); 
+      let rawData = localStorage.getItem('sanstech_' + idKey);
+      let arr = [];
+      try {
+          arr = JSON.parse(rawData);
+          if(!Array.isArray(arr)) arr = [];
+      } catch(e) {
+          arr = [];
+      }
+      
+      if(arr.length === 0 || !arr.includes(defaultVal)) {
+          arr.unshift(defaultVal); // Pastikan nilai default selalu ada di posisi pertama
+      }
       
       let liHtml = ''; 
       arr.forEach((item, idx) => { 
-          let btnHapus = (idx === 0) ? `<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black border border-slate-200 uppercase">Sistem</span>` : `<button onclick="hapusMasterLokal('${idKey}', ${idx}, '${title}')" class="text-red-400 hover:text-red-600 transition bg-red-50 w-6 h-6 rounded flex items-center justify-center border border-red-100" title="Hapus"><i class="fa-solid fa-trash text-[10px]"></i></button>`;
+          // Jika item adalah nilai default (Umum, Pusat, Pcs, Tunai), cegah penghapusan
+          let isDefault = (item === defaultVal);
+          let btnHapus = isDefault ? `<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black border border-slate-200 uppercase">Sistem</span>` : `<button onclick="hapusMasterLokal('${idKey}', ${idx}, '${title}')" class="text-red-400 hover:text-red-600 transition bg-red-50 w-6 h-6 rounded flex items-center justify-center border border-red-100" title="Hapus"><i class="fa-solid fa-trash text-[10px]"></i></button>`;
           liHtml += `<li class="flex justify-between items-center bg-white border border-slate-100 p-2.5 rounded-lg shadow-sm mb-1.5 hover:border-blue-200 transition"><span class="font-bold text-slate-700 text-xs">${item}</span>${btnHapus}</li>`; 
       }); 
       return liHtml; 
