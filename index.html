@@ -620,16 +620,18 @@ function viewProduk() {
   if(!savedCabang.includes("Pusat")) savedCabang.unshift("Pusat");
   let opsiCabangHtml = ""; savedCabang.forEach(cab => opsiCabangHtml += `<option value="${cab}">${cab}</option>`); 
 
-  // Ambil data kategori dari Data Master
   let listKat = JSON.parse(localStorage.getItem('sanstech_list-kat') || '["Umum"]');
   let opsiKatHtml = ""; listKat.forEach(k => opsiKatHtml += `<option value="${k}">${k}</option>`);
 
   let filterCabangHtml = '';
-  if(state.role !== 'KASIR') {
+  // Perbaikan deteksi role SUPER ADMIN
+  if(String(state.role).toUpperCase().trim() !== 'KASIR') {
       filterCabangHtml = `<select id="filter-cabang-produk" onchange="filterProdukUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white ml-3 shadow-sm"><option value="SEMUA">Semua Cabang</option>`;
       savedCabang.forEach(c => { filterCabangHtml += `<option value="${c}">${c}</option>`; });
       filterCabangHtml += `</select>`;
-  } else { filterCabangHtml = `<input type="hidden" id="filter-cabang-produk" value="${state.cabang}">`; }
+  } else { 
+      filterCabangHtml = `<input type="hidden" id="filter-cabang-produk" value="${state.cabang}">`; 
+  }
 
   return `
   <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full"> 
@@ -676,16 +678,27 @@ function viewProduk() {
 
 function filterProdukUI() { 
     let filterEl = document.getElementById('filter-cabang-produk');
-    let filterCabang = filterEl ? filterEl.value : (state.role === 'KASIR' ? state.cabang : 'SEMUA');
+    let filterCabang = filterEl ? filterEl.value : 'SEMUA';
+
+    // Standarisasi String agar kebal salah spasi / huruf besar kecil
+    let roleUpper = String(state.role).toUpperCase().trim();
+    let myCab = String(state.cabang).toUpperCase().trim();
+    let fCab = String(filterCabang).toUpperCase().trim();
 
     let html = ""; 
     if(!state.data.produk || state.data.produk.length === 0) { 
         html = `<tr><td colspan="5" class="p-10 text-center text-slate-400 font-bold">Data Kosong.</td></tr>`; 
     } else { 
         state.data.produk.forEach(p => { 
-            let pCabang = p.Cabang || 'Pusat';
-            if(filterCabang !== 'SEMUA' && pCabang !== filterCabang) return;
-            if (state.role === 'KASIR' && pCabang !== state.cabang && pCabang !== 'Pusat') return;
+            let rawCabang = p.Cabang || 'Pusat';
+            let pCabang = String(rawCabang).toUpperCase().trim();
+            
+            // Pertahanan Filter Mutlak
+            if (roleUpper === 'KASIR') {
+                if (pCabang !== myCab && pCabang !== 'PUSAT') return; // Kasir hanya bisa lihat cabang dia + pusat
+            } else {
+                if (fCab !== 'SEMUA' && pCabang !== fCab) return;
+            }
 
             let isHabis = parseInt(p.Stok_Saat_Ini) <= 0; 
             let isWarning = parseInt(p.Stok_Saat_Ini) <= parseInt(p.Stok_Minimum || 0) && !isHabis;
@@ -696,7 +709,7 @@ function filterProdukUI() {
 
             html += `<tr class="hover:bg-slate-50 transition">
                 <td class="p-4 pl-6"><p class="text-xs font-bold text-blue-600">${p.ID_Produk}</p><p class="text-[10px] font-mono text-slate-400">${p.Barcode||'-'}</p></td>
-                <td class="p-4"><p class="font-bold text-slate-800">${p.Nama_Produk}</p><div class="mt-1 flex flex-wrap gap-1"><span class="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 border border-slate-200"><i class="fa-solid fa-tag mr-1 text-slate-400"></i>${p.Kategori}</span> ${warnaHtml} <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold border border-blue-100 uppercase"><i class="fa-solid fa-location-dot mr-1"></i>${pCabang}</span></div></td>
+                <td class="p-4"><p class="font-bold text-slate-800">${p.Nama_Produk}</p><div class="mt-1 flex flex-wrap gap-1"><span class="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 border border-slate-200"><i class="fa-solid fa-tag mr-1 text-slate-400"></i>${p.Kategori}</span> ${warnaHtml} <span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-bold border border-blue-100 uppercase"><i class="fa-solid fa-location-dot mr-1"></i>${rawCabang}</span></div></td>
                 <td class="p-4 admin-only"><p class="text-[10px] text-slate-400 font-bold">B: ${formatRp(p.Harga_Beli)}</p><p class="text-sm text-slate-800 font-black mt-0.5">J: ${formatRp(p.Harga_Jual)} ${diskonHtml}</p></td>
                 <td class="p-4"><span class="${stClass}">${p.Stok_Saat_Ini} <span class="text-[10px] font-bold text-slate-400 uppercase">${p.Satuan}</span></span><p class="text-[10px] text-slate-400 mt-1 font-bold">Min Stok: ${p.Stok_Minimum || 0}</p></td>
                 <td class="p-4 pr-6 flex gap-2 justify-center items-center h-full admin-only mt-2">
@@ -707,7 +720,7 @@ function filterProdukUI() {
         }); 
     } 
     let el = document.getElementById('tabel-produk-ui'); 
-    if(el) { el.innerHTML = html; document.querySelectorAll('.admin-only').forEach(e => { e.style.display = (state.role === 'KASIR') ? 'none' : ''; }); }
+    if(el) { el.innerHTML = html; document.querySelectorAll('.admin-only').forEach(e => { e.style.display = (String(state.role).toUpperCase().trim() === 'KASIR') ? 'none' : ''; }); }
 }
 
 function bukaFormProduk(isEdit, idProduk) { 
@@ -802,8 +815,9 @@ function viewStok() {
     savedCabang.forEach(cab => opsiCabangTFHtml += `<option value="${cab}">${cab}</option>`); 
 
     let filterCabangHtml = '';
-  if(state.role !== 'KASIR') {
-      filterCabangHtml = `<select id="stok-filter-cabang" onchange="filterStokUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white min-w-[150px]"><option value="SEMUA">Semua Cabang</option>`;
+    // Perbaikan deteksi role
+    if(String(state.role).toUpperCase().trim() !== 'KASIR') {
+        filterCabangHtml = `<select id="stok-filter-cabang" onchange="filterStokUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white min-w-[150px]"><option value="SEMUA">Semua Cabang</option>`;
         savedCabang.forEach(c => { filterCabangHtml += `<option value="${c}">${c}</option>`; });
         filterCabangHtml += `</select>`;
     } else {
@@ -871,33 +885,51 @@ function viewStok() {
 
 function filterStokUI() { 
     let filterEl = document.getElementById('stok-filter-cabang');
-    let filterCabang = filterEl ? filterEl.value : (state.role === 'KASIR' ? state.cabang : 'SEMUA');
+    let filterCabang = filterEl ? filterEl.value : 'SEMUA';
+
+    // Standarisasi String agar kebal salah spasi / huruf besar kecil
+    let roleUpper = String(state.role).toUpperCase().trim();
+    let myCab = String(state.cabang).toUpperCase().trim();
+    let fCab = String(filterCabang).toUpperCase().trim();
 
     let hS = "", hM = "", hO = ""; 
 
     if(state.data.produk && state.data.produk.length > 0) { 
         state.data.produk.forEach((p, idx) => { 
-            let pCabang = p.Cabang || 'Pusat';
-            if(filterCabang !== 'SEMUA' && pCabang !== filterCabang) return;
+            let rawCabang = p.Cabang || 'Pusat';
+            let pCabang = String(rawCabang).toUpperCase().trim();
+
+            // Pertahanan Filter Mutlak
+            if (roleUpper === 'KASIR') {
+                if (pCabang !== myCab) return; // KASIR dilarang keras lihat cabang lain
+            } else {
+                if (fCab !== 'SEMUA' && pCabang !== fCab) return; // ADMIN bebas filter
+            }
 
             let isHabis = parseInt(p.Stok_Saat_Ini) <= 0; 
             let isWarning = parseInt(p.Stok_Saat_Ini) <= parseInt(p.Stok_Minimum || 0) && !isHabis;
             let stClass = isHabis ? "text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200" : (isWarning ? "text-orange-500 bg-orange-50 px-2 py-1 rounded border border-orange-200" : "text-emerald-600 font-black"); 
             let warnIcon = isWarning ? `<i class="fa-solid fa-triangle-exclamation text-orange-500 ml-2" title="Stok Menipis!"></i>` : '';
             
-            hS += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-500">${p.ID_Produk}</td><td class="p-4 text-slate-800 font-bold">${p.Nama_Produk}<br><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 uppercase mt-1 inline-block"><i class="fa-solid fa-store mr-1"></i>${pCabang}</span></td><td class="p-4"><span class="${stClass} text-lg">${p.Stok_Saat_Ini}</span> <span class="text-[10px] font-bold text-slate-400 uppercase">${p.Satuan||''}</span>${warnIcon}</td></tr>`; 
+            hS += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-500">${p.ID_Produk}</td><td class="p-4 text-slate-800 font-bold">${p.Nama_Produk}<br><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 uppercase mt-1 inline-block"><i class="fa-solid fa-store mr-1"></i>${rawCabang}</span></td><td class="p-4"><span class="${stClass} text-lg">${p.Stok_Saat_Ini}</span> <span class="text-[10px] font-bold text-slate-400 uppercase">${p.Satuan||''}</span>${warnIcon}</td></tr>`; 
             
-            hO += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-500">${p.ID_Produk}</td><td class="p-4 text-slate-800 font-bold truncate max-w-[200px]">${p.Nama_Produk}<br><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 uppercase mt-1 inline-block"><i class="fa-solid fa-store mr-1"></i>${pCabang}</span></td><td class="p-4 text-center font-black text-blue-600 text-lg" id="op-sys-${idx}">${p.Stok_Saat_Ini}</td><td class="p-4 text-center"><input type="number" id="op-fisik-${idx}" value="${p.Stok_Saat_Ini}" onkeyup="hitungSelisih(${idx})" onchange="hitungSelisih(${idx})" class="w-24 border border-slate-300 p-2.5 rounded-xl font-black text-center outline-none focus:border-orange-500 bg-orange-50 text-orange-700 shadow-inner"></td><td class="p-4 text-center font-black text-slate-400 text-lg" id="op-selisih-${idx}">0</td><td class="p-4 pr-6"><input type="text" id="op-ket-${idx}" placeholder="Aman / Rusak" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-orange-500 bg-slate-50"></td></tr>`; 
+            hO += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-500">${p.ID_Produk}</td><td class="p-4 text-slate-800 font-bold truncate max-w-[200px]">${p.Nama_Produk}<br><span class="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 uppercase mt-1 inline-block"><i class="fa-solid fa-store mr-1"></i>${rawCabang}</span></td><td class="p-4 text-center font-black text-blue-600 text-lg" id="op-sys-${idx}">${p.Stok_Saat_Ini}</td><td class="p-4 text-center"><input type="number" id="op-fisik-${idx}" value="${p.Stok_Saat_Ini}" onkeyup="hitungSelisih(${idx})" onchange="hitungSelisih(${idx})" class="w-24 border border-slate-300 p-2.5 rounded-xl font-black text-center outline-none focus:border-orange-500 bg-orange-50 text-orange-700 shadow-inner"></td><td class="p-4 text-center font-black text-slate-400 text-lg" id="op-selisih-${idx}">0</td><td class="p-4 pr-6"><input type="text" id="op-ket-${idx}" placeholder="Aman / Rusak" class="w-full border border-slate-200 p-2.5 rounded-xl text-xs font-bold outline-none focus:border-orange-500 bg-slate-50"></td></tr>`; 
         }); 
     } 
 
     if(state.data.stok && state.data.stok.length > 0) { 
         state.data.stok.slice().reverse().forEach(m => { 
-            let mCabang = m.Cabang || 'Pusat';
-            if(filterCabang !== 'SEMUA' && mCabang !== filterCabang) return;
+            let rawCabang = m.Cabang || 'Pusat';
+            let mCabang = String(rawCabang).toUpperCase().trim();
+
+            if (roleUpper === 'KASIR') {
+                if (mCabang !== myCab) return;
+            } else {
+                if (fCab !== 'SEMUA' && mCabang !== fCab) return;
+            }
 
             let col = String(m.Jenis_Pergerakan).toUpperCase().includes('MASUK') ? 'text-emerald-500' : 'text-red-500'; 
-            hM += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-400 font-bold">${String(m.Waktu).substring(0, 16)}<br><span class="text-[10px] text-blue-500 uppercase"><i class="fa-solid fa-store mr-1"></i>${mCabang}</span></td><td class="p-4 font-bold text-slate-800">${m.ID_Produk}</td><td class="p-4 font-black ${col}">${m.Jenis_Pergerakan} <span class="bg-slate-100 px-2 py-1 rounded text-slate-600 ml-2 border border-slate-200">${m.Jumlah}</span></td><td class="p-4 text-xs text-slate-500 font-bold">${m.Keterangan}</td></tr>`; 
+            hM += `<tr class="hover:bg-slate-50 transition"><td class="p-4 pl-6 text-xs text-slate-400 font-bold">${String(m.Waktu).substring(0, 16)}<br><span class="text-[10px] text-blue-500 uppercase"><i class="fa-solid fa-store mr-1"></i>${rawCabang}</span></td><td class="p-4 font-bold text-slate-800">${m.ID_Produk}</td><td class="p-4 font-black ${col}">${m.Jenis_Pergerakan} <span class="bg-slate-100 px-2 py-1 rounded text-slate-600 ml-2 border border-slate-200">${m.Jumlah}</span></td><td class="p-4 text-xs text-slate-500 font-bold">${m.Keterangan}</td></tr>`; 
         }); 
     } 
 
