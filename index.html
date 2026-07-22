@@ -1926,17 +1926,27 @@ function viewKeuangan() {
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl shadow-sm">
-        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Total Pemasukan</p>
+        <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Total Pemasukan (Filter)</p>
         <p class="text-2xl font-black text-emerald-700" id="k-masuk">Rp 0</p>
       </div>
       <div class="bg-red-50 border border-red-100 p-5 rounded-2xl shadow-sm">
-        <p class="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-1">Total Pengeluaran</p>
+        <p class="text-[10px] font-bold text-red-600 uppercase tracking-widest mb-1">Total Pengeluaran (Filter)</p>
         <p class="text-2xl font-black text-red-700" id="k-keluar">Rp 0</p>
       </div>
       <div class="bg-blue-600 text-white p-5 rounded-2xl shadow-md flex flex-col justify-between">
-        <p class="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Saldo Kas Bersih</p>
+        <p class="text-[10px] font-bold text-blue-200 uppercase tracking-widest mb-1">Saldo Kas Bersih (Filter)</p>
         <p class="text-2xl font-black text-white" id="k-saldo">Rp 0</p>
       </div>
+    </div>
+
+    <!-- FILTER BARU -->
+    <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 mb-6 shadow-sm">
+        <div class="flex flex-wrap gap-4 items-end mb-2">
+            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Dari Tanggal</label><br><input type="date" id="keu-start" class="border border-slate-300 p-2.5 rounded-lg mt-1 font-bold outline-none bg-white focus:border-blue-500"></div>
+            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Sampai Tanggal</label><br><input type="date" id="keu-end" class="border border-slate-300 p-2.5 rounded-lg mt-1 font-bold outline-none bg-white focus:border-blue-500"></div>
+            <div><label class="text-[10px] font-bold text-slate-500 uppercase">Jenis Arus</label><br><select id="keu-tipe" class="border border-slate-300 p-2.5 rounded-lg mt-1 font-bold outline-none bg-white focus:border-blue-500 min-w-[150px]"><option value="SEMUA">Semua Arus</option><option value="PEMASUKAN">Pemasukan Saja</option><option value="PENGELUARAN">Pengeluaran Saja</option></select></div>
+            <button onclick="filterKeuanganUI()" class="bg-blue-600 hover:bg-blue-700 transition text-white px-6 py-2.5 rounded-lg font-black shadow-md"><i class="fa-solid fa-filter mr-2"></i>Filter Data</button>
+        </div>
     </div>
 
     <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 mb-6 shadow-sm">
@@ -1961,33 +1971,79 @@ function viewKeuangan() {
 }
 
 function filterKeuanganUI() { 
+    // 1. Set Default Tanggal jika kosong (Awal Bulan s/d Hari Ini)
+    let d = new Date(); 
+    let yyyy = d.getFullYear(); 
+    let mm = String(d.getMonth() + 1).padStart(2, '0'); 
+    let dd = String(d.getDate()).padStart(2, '0'); 
+    let todayStr = `${yyyy}-${mm}-${dd}`; 
+    
+    let elStart = document.getElementById('keu-start'); 
+    let elEnd = document.getElementById('keu-end'); 
+    let elTipe = document.getElementById('keu-tipe'); 
+    
+    // Set format default di UI jika belum diisi
+    if(elStart && !elStart.value) elStart.value = `${yyyy}-${mm}-01`; 
+    if(elEnd && !elEnd.value) elEnd.value = todayStr; 
+    
+    let startVal = elStart ? elStart.value : `${yyyy}-${mm}-01`; 
+    let endVal = elEnd ? elEnd.value : todayStr; 
+    let tipeVal = elTipe ? elTipe.value : 'SEMUA'; 
+    
+    let startD = new Date(startVal + "T00:00:00"); 
+    let endD = new Date(endVal + "T23:59:59");
+
     let html = ""; let masuk = 0; let keluar = 0; 
+    
     if(!state.data.keuangan || state.data.keuangan.length === 0) { 
         html = `<tr><td colspan="5" class="p-10 text-center text-slate-400 font-bold">Belum ada riwayat transaksi keuangan.</td></tr>`; 
     } else { 
-        state.data.keuangan.slice().reverse().forEach(t => { 
-            let isMasuk = t.Jenis_Arus === 'PEMASUKAN'; 
-            let nom = parseFloat(t.Nominal)||0; 
-            if(isMasuk) masuk += nom; else keluar += nom; 
+        // 2. Lakukan Saringan Data
+        let filteredData = state.data.keuangan.filter(t => {
+            let rawDate = String(t.Waktu).substring(0, 10);
+            let wkt;
+            if(rawDate.includes('/')) {
+               let p = rawDate.split('/');
+               wkt = new Date(`${p[2]}-${p[1]}-${p[0]}T12:00:00`);
+            } else {
+               wkt = new Date(rawDate + "T12:00:00");
+            }
             
-            html += `<tr class="hover:bg-slate-50 transition">
-                <td class="p-4 pl-6 text-xs text-slate-400 font-bold">${String(t.Waktu).substring(0,16)}</td>
-                <td class="p-4 text-xs font-mono text-blue-600 font-bold">${t.ID_Transaksi}</td>
-                <td class="p-4"><span class="${isMasuk?'text-emerald-600 bg-emerald-50 border-emerald-200':'text-red-600 bg-red-50 border-red-200'} px-2 py-1 rounded text-[10px] font-black border uppercase">${t.Jenis_Arus}</span></td>
-                <td class="p-4 text-xs text-slate-700">${t.Keterangan} <span class="text-[10px] text-slate-400 block font-normal mt-0.5">Kasir: ${t.Kasir||'-'} (${t.Cabang||'Pusat'})</span></td>
-                <td class="p-4 pr-6 text-right font-black ${isMasuk?'text-emerald-600':'text-red-500'}">${isMasuk?'+':'-'} ${formatRp(nom)}</td>
-            </tr>`; 
-        }); 
+            let passDate = (wkt >= startD && wkt <= endD);
+            let passTipe = (tipeVal === 'SEMUA' || t.Jenis_Arus === tipeVal);
+            
+            return passDate && passTipe;
+        });
+
+        if(filteredData.length === 0) {
+             html = `<tr><td colspan="5" class="p-10 text-center text-slate-400 font-bold">Tidak ada data pada filter ini.</td></tr>`; 
+        } else {
+            filteredData.slice().reverse().forEach(t => { 
+                let isMasuk = t.Jenis_Arus === 'PEMASUKAN'; 
+                let nom = parseFloat(t.Nominal)||0; 
+                if(isMasuk) masuk += nom; else keluar += nom; 
+                
+                html += `<tr class="hover:bg-slate-50 transition">
+                    <td class="p-4 pl-6 text-xs text-slate-400 font-bold">${String(t.Waktu).substring(0,16)}</td>
+                    <td class="p-4 text-xs font-mono text-blue-600 font-bold cursor-pointer hover:underline" onclick="navigator.clipboard.writeText('${t.ID_Transaksi}'); showInlineNotif('info', 'ID Transaksi ${t.ID_Transaksi} disalin!')" title="Klik untuk Salin ID Transaksi">${t.ID_Transaksi}</td>
+                    <td class="p-4"><span class="${isMasuk?'text-emerald-600 bg-emerald-50 border-emerald-200':'text-red-600 bg-red-50 border-red-200'} px-2 py-1 rounded text-[10px] font-black border uppercase">${t.Jenis_Arus}</span></td>
+                    <td class="p-4 text-xs text-slate-700">${t.Keterangan} <span class="text-[10px] text-slate-400 block font-normal mt-0.5">Kasir: ${t.Kasir||'-'} (${t.Cabang||'Pusat'})</span></td>
+                    <td class="p-4 pr-6 text-right font-black ${isMasuk?'text-emerald-600':'text-red-500'}">${isMasuk?'+':'-'} ${formatRp(nom)}</td>
+                </tr>`; 
+            }); 
+        }
     } 
+    
     let el = document.getElementById('tabel-keuangan-ui'); 
     if(el) el.innerHTML = html; 
+    
+    // Update Kotak Saldo Sesuai Filter
     if(document.getElementById('k-masuk')) { 
         document.getElementById('k-masuk').innerText = formatRp(masuk); 
         document.getElementById('k-keluar').innerText = formatRp(keluar); 
         document.getElementById('k-saldo').innerText = formatRp(masuk - keluar); 
     } 
 }
-
 async function simpanPengeluaran() { 
     let ket = document.getElementById('ex-ket').value.trim(); 
     let nom = document.getElementById('ex-nom').value; 
