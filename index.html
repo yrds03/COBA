@@ -630,23 +630,33 @@ async function jalankanCetakStruk(invoice, totAkhir) {
       }
   }
 
+  // AMBIL HEADER DAN FOOTER DARI PENGATURAN
+  let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
+  let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima Kasih"; 
+
+  // JIKA PRINTER BLUETOOTH KONEK (PERBAIKAN DI SINI)
   if (btCharacteristic) {
-      let teks = `\n${namaToko}\n--------------------------------\nINV: ${invoice}\nTgl: ${new Date().toLocaleString('id-ID')}\n--------------------------------\n`;
+      let teks = `\n${namaToko}\n`;
+      if (headerToko) teks += `${headerToko}\n`; // MASUKKAN HEADER
+      
+      teks += `--------------------------------\nINV: ${invoice}\nTgl: ${new Date().toLocaleString('id-ID')}\n--------------------------------\n`;
       state.keranjangPOS.forEach(i => { teks += `${i.nama}\n${i.qty}x ${i.harga} = ${i.total}\n`; });
       teks += `--------------------------------\nSubtotal: ${formatRp(subtotalPrint)}\n`;
       if(pajakPrint > 0) teks += `Pajak PPN: +${formatRp(pajakPrint)}\n`;
-      teks += `TOTAL: ${formatRp(totAkhir)}\nBayar: ${state.metodeBayar}\n--------------------------------\nTerima Kasih\n\n\n\n`;
+      teks += `TOTAL: ${formatRp(totAkhir)}\nBayar: ${state.metodeBayar}\n--------------------------------\n`;
+      
+      teks += `${footerToko}\n\n\n\n`; // MASUKKAN FOOTER
+      
       let hasil = await cetakStrukBluetooth(teks);
       if(hasil) showInlineNotif('success', 'Struk Tercetak via Bluetooth!');
       return; 
   }
   
+  // JIKA PRINTER KOMPUTER / PDF
   let iframe = document.getElementById('print-iframe'); 
   let doc = iframe.contentWindow.document; 
   let title = state.isSO ? "NOTA PESANAN (SO)" : "Struk Pembayaran"; 
   let alamatToko = localStorage.getItem('sanstech_alamat_toko') || "Sistem ERP Distributor"; 
-  let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
-  let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima kasih atas kunjungan Anda."; 
   
   let html = `<html><head><style>@page{margin:0;} body{font-family:monospace; color:black; font-size:11px; width:58mm; padding:2mm; margin:0;} .garis{border-bottom: 1px dashed black; margin: 4px 0;}</style></head><body>`; 
   html += `<div style="text-align:center;"><b style="font-size:14px;">${namaToko}</b><br>${alamatToko}`; if(headerToko) html += `<br>${headerToko}`; html += `<br><br><b>${title}</b><br><div class="garis"></div></div>`;
@@ -720,7 +730,6 @@ function cetakInvoiceRiwayat(inv) {
     let pajakPrint = parseFloat(trx.Pajak || 0);
     let totAkhir = parseFloat(trx.Total_Akhir);
     
-    // LOGIKA OTOMATIS GANTI NAMA PUSAT JADI CABANG SESUAI TRANSAKSI
     let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
     let trxCabang = trx.Cabang || state.cabang; 
     if(trxCabang && String(trxCabang).toUpperCase() !== 'PUSAT') {
@@ -731,12 +740,38 @@ function cetakInvoiceRiwayat(inv) {
         }
     }
 
+    // AMBIL HEADER DAN FOOTER DARI PENGATURAN
+    let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
+    let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima Kasih"; 
+
+    // JIKA PRINTER BLUETOOTH KONEK (PERBAIKAN DI SINI)
+    if (btCharacteristic) {
+        let teks = `\n${namaToko}\n`;
+        if (headerToko) teks += `${headerToko}\n`; // MASUKKAN HEADER
+        
+        teks += `--------------------------------\nINV: ${inv}\nTgl: ${String(trx.Waktu).substring(0,16)}\n--------------------------------\n`;
+        det.forEach(d => { 
+            let prd = state.data.produk.find(p => p.ID_Produk === d.ID_Produk); 
+            let nm = prd ? prd.Nama_Produk : d.ID_Produk;
+            teks += `${nm}\n${d.Qty}x ${parseFloat(d.Harga_Satuan||0)} = ${parseFloat(d.Total_Harga||0)}\n`; 
+        });
+        teks += `--------------------------------\nSubtotal: ${formatRp(subtotalPrint)}\n`;
+        if(pajakPrint > 0) teks += `Pajak PPN: +${formatRp(pajakPrint)}\n`;
+        teks += `TOTAL: ${formatRp(totAkhir)}\nBayar: ${trx.Metode_Pembayaran}\n--------------------------------\n`;
+        
+        teks += `${footerToko}\n\n\n\n`; // MASUKKAN FOOTER
+        
+        cetakStrukBluetooth(teks).then(hasil => {
+            if(hasil) showInlineNotif('success', 'Struk Tercetak via Bluetooth!');
+        });
+        return; 
+    }
+
+    // JIKA PRINTER KOMPUTER / PDF
     let iframe = document.getElementById('print-iframe'); 
     let doc = iframe.contentWindow.document; 
     let title = String(trx.Status).includes('SO') ? "NOTA PESANAN (SO)" : "INVOICE PEMBAYARAN"; 
     let alamatToko = localStorage.getItem('sanstech_alamat_toko') || "Sistem ERP Distributor"; 
-    let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
-    let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima kasih atas kunjungan Anda."; 
     
     let html = `<html><head><style>@page{margin:0;} body{font-family:monospace; color:black; font-size:11px; width:58mm; padding:2mm; margin:0;} .garis{border-bottom: 1px dashed black; margin: 4px 0;}</style></head><body>`; 
     html += `<div style="text-align:center;"><b style="font-size:14px;">${namaToko}</b><br>${alamatToko}`; if(headerToko) html += `<br>${headerToko}`; html += `<br><br><b>${title}</b><br><div class="garis"></div></div>`;
@@ -1587,6 +1622,12 @@ function viewLaporan() {
         <div class="bg-slate-900 border-l-4 border-orange-500 p-5 rounded-xl shadow-md"><p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Saldo Kasir Aktual</p><p class="text-xl md:text-2xl font-black text-orange-400 truncate" id="lap-kas">Rp 0</p></div> 
       </div> 
       
+      <!-- PENJUALAN PER KATEGORI (FITUR BARU) -->
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+          <h4 class="font-black text-slate-800 mb-4 border-b pb-3"><i class="fa-solid fa-tags text-cyan-500 mr-2"></i>Rincian Penjualan per Kategori (Lunas)</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="lap-kategori"></div>
+      </div>
+
       <!-- DETAILED LABA RUGI & CHART -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div class="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
@@ -1630,7 +1671,7 @@ function viewLaporan() {
       <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-10">
           <h4 class="font-black text-slate-800 mb-4"><i class="fa-solid fa-download text-emerald-500 mr-2"></i>Export Data Laporan (Download CSV)</h4> 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4"> 
-             <button onclick="exportDataCSV('penjualan')" class="bg-slate-50 text-slate-700 font-bold p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition flex items-center justify-center gap-2"><i class="fa-solid fa-file-excel"></i> Penjualan</button> 
+             <button onclick="exportDataCSV('penjualan')" class="bg-slate-50 text-slate-700 font-bold p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition flex items-center justify-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Detail Penjualan</button> 
              <button onclick="exportDataCSV('pembelian')" class="bg-slate-50 text-slate-700 font-bold p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition flex items-center justify-center gap-2"><i class="fa-solid fa-file-excel"></i> Pembelian PO</button> 
              <button onclick="exportDataCSV('stok')" class="bg-slate-50 text-slate-700 font-bold p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition flex items-center justify-center gap-2"><i class="fa-solid fa-file-excel"></i> Kartu Stok</button> 
              <button onclick="exportDataCSV('keuangan')" class="bg-slate-50 text-slate-700 font-bold p-3 rounded-xl border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition flex items-center justify-center gap-2"><i class="fa-solid fa-file-excel"></i> Arus Kas</button> 
@@ -1638,7 +1679,6 @@ function viewLaporan() {
       </div> 
   </div> `; 
 }
-
 function renderChartLaporan() { 
   let startDateVal = document.getElementById('lap-start').value; let endDateVal = document.getElementById('lap-end').value; 
   let formatYMD = (dateObj) => { let y = dateObj.getFullYear(); let m = String(dateObj.getMonth() + 1).padStart(2, '0'); let d = String(dateObj.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }; 
@@ -1648,6 +1688,7 @@ function renderChartLaporan() {
   
   let omsetRange = 0; let hppRange = 0; let pengeluaranRange = 0;
   let terlarisMap = {}; let chartMap = {}; 
+  let kategoriMap = {}; // Variabel baru untuk Kategori
   
   // 1. Kalkulasi Penjualan & HPP Modal (Chart Data)
   if(state.data.penjualan) { 
@@ -1681,6 +1722,12 @@ function renderChartLaporan() {
 
                   if(!terlarisMap[d.ID_Produk]) terlarisMap[d.ID_Produk] = 0; 
                   terlarisMap[d.ID_Produk] += parseInt(d.Qty||0); 
+
+                  // --- LOGIKA KATEGORI BARU ---
+                  let kat = prd ? (prd.Kategori || "Lainnya") : "Lainnya";
+                  if(!kategoriMap[kat]) kategoriMap[kat] = { qty: 0, omset: 0 };
+                  kategoriMap[kat].qty += parseInt(d.Qty||0);
+                  kategoriMap[kat].omset += parseFloat(d.Total_Harga || 0);
               }
           });
       }
@@ -1707,31 +1754,41 @@ function renderChartLaporan() {
           
           let parts = String(k.Waktu).substring(0, 10).split('-'); 
           let wkt = new Date(parts[0], parts[1]-1, parts[2], 12, 0, 0); 
-          // Filter Pengeluaran Murni pada range tanggal
           if (wkt >= startD && wkt <= endD && k.Jenis_Arus === 'PENGELUARAN' && !String(k.Keterangan).includes('PO ') && !String(k.Keterangan).includes('Pembelian') && !String(k.Keterangan).includes('Retur')) {
               pengeluaranRange += nom;
           }
       }); 
   }
 
-  // 3. Matematika Laba Rugi
   let labaKotorRange = omsetRange - hppRange;
   let labaBersihRange = labaKotorRange - pengeluaranRange;
 
-  // 4. Update Angka ke UI (Kartu Executive)
+  // Render UI Atas
   if(document.getElementById('lap-omset')) document.getElementById('lap-omset').innerText = formatRp(omsetRange); 
   if(document.getElementById('lap-laba-kotor')) document.getElementById('lap-laba-kotor').innerText = formatRp(labaKotorRange); 
   if(document.getElementById('lap-laba-bersih')) document.getElementById('lap-laba-bersih').innerText = formatRp(labaBersihRange); 
   if(document.getElementById('lap-kas')) document.getElementById('lap-kas').innerText = formatRp(kasMasukTotal - kasKeluarTotal); 
   
-  // 5. Update Angka ke UI (Rincian Detail)
   if(document.getElementById('dtl-omset')) document.getElementById('dtl-omset').innerText = formatRp(omsetRange); 
   if(document.getElementById('dtl-hpp')) document.getElementById('dtl-hpp').innerText = "- " + formatRp(hppRange); 
   if(document.getElementById('dtl-kotor')) document.getElementById('dtl-kotor').innerText = formatRp(labaKotorRange); 
   if(document.getElementById('dtl-op')) document.getElementById('dtl-op').innerText = "- " + formatRp(pengeluaranRange); 
   if(document.getElementById('dtl-bersih')) document.getElementById('dtl-bersih').innerText = formatRp(labaBersihRange); 
   
-  // 6. Rekap Cabang
+  // Render Kategori (NEW)
+  let htmlKat = "";
+  let sortedKat = Object.keys(kategoriMap).sort((a,b) => kategoriMap[b].omset - kategoriMap[a].omset);
+  if(sortedKat.length === 0) {
+      htmlKat = `<p class="col-span-full text-center text-slate-400 font-bold py-4">Belum ada data penjualan kategori.</p>`;
+  } else {
+      sortedKat.forEach(k => {
+          let d = kategoriMap[k];
+          htmlKat += `<div class="bg-cyan-50 border border-cyan-100 p-4 rounded-xl shadow-sm"><p class="text-[10px] font-black text-cyan-800 mb-1 uppercase tracking-widest">${k}</p><div class="flex flex-col gap-1"><p class="text-lg font-black text-cyan-700">${formatRp(d.omset)}</p><p class="text-[10px] text-cyan-600 font-bold"><i class="fa-solid fa-box mr-1"></i> ${d.qty} Terjual</p></div></div>`;
+      });
+  }
+  if(document.getElementById('lap-kategori')) document.getElementById('lap-kategori').innerHTML = htmlKat;
+
+  // Rekap Cabang
   let rekapCabang = {};
   if(state.data.produk) {
       state.data.produk.forEach(p => {
@@ -1764,20 +1821,41 @@ function renderChartLaporan() {
   if(htmlRekap === "") htmlRekap = `<tr><td colspan="4" class="text-center p-4 text-slate-400">Belum ada data cabang.</td></tr>`;
   if(document.getElementById('lap-rekap-cabang')) document.getElementById('lap-rekap-cabang').innerHTML = htmlRekap;
 
-  // 7. Top Terlaris
+  // Top Terlaris
   let sortTerlaris = Object.keys(terlarisMap).map(k => ({id: k, qty: terlarisMap[k]})).sort((a,b) => b.qty - a.qty).slice(0, 5); let htmlTerlaris = ""; if(sortTerlaris.length === 0) { htmlTerlaris = `<p class="text-xs text-slate-500 text-center mt-8 font-bold">Belum ada data penjualan pada range ini.</p>`; } else { sortTerlaris.forEach((item, idx) => { let prd = state.data.produk.find(p => String(p.ID_Produk) === String(item.id)); let nama = prd ? prd.Nama_Produk : item.id; htmlTerlaris += `<div class="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl shadow-sm"><div class="flex items-center gap-3"><div class="w-7 h-7 rounded bg-orange-100 text-orange-600 font-black text-xs flex items-center justify-center">#${idx+1}</div><p class="text-xs font-bold text-slate-700 truncate w-32 md:w-48">${nama}</p></div><p class="text-xs font-black text-blue-600">${item.qty} Terjual</p></div>`; }); } if(document.getElementById('lap-terlaris')) document.getElementById('lap-terlaris').innerHTML = htmlTerlaris; 
   
-  // 8. Render Grafik
+  // Render Grafik
   let canvas = document.getElementById('chartLaporanLaba'); if(!canvas) return; if(chartLaporan !== null) chartLaporan.destroy(); let ctx = canvas.getContext('2d'); chartLaporan = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Omset Kotor', data: dataPenjualan, backgroundColor: '#3b82f6', borderRadius: 4 }, { label: 'HPP (Modal)', data: dataModal, backgroundColor: '#f43f5e', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false } }); 
 }
 
 function exportDataCSV(tipe) { 
     let csv = ""; let fileName = ""; 
+    
     if(tipe === 'penjualan') { 
         if(!state.data.penjualan || state.data.penjualan.length === 0) return showInlineNotif('error', 'Data kosong!'); 
-        csv = "Invoice,Waktu,Pelanggan,Metode,Total,Status,Kasir,Cabang\n"; 
-        state.data.penjualan.forEach(p => { csv += `${p.ID_Invoice},${p.Waktu},${p.ID_Pelanggan},${p.Metode_Pembayaran},${p.Total_Akhir},${p.Status},${p.Kasir},${p.Cabang||state.cabang}\n`; }); 
-        fileName = "Data_Penjualan.csv"; 
+        
+        // CSV INI SEKARANG SANGAT LENGKAP: Ada Kategori & Nama Barang!
+        csv = "Invoice,Waktu,Pelanggan,Kasir,Cabang,Status,Nama Produk,Kategori,Harga Satuan,Qty,Total Harga Item,Metode Bayar\n"; 
+        
+        state.data.penjualan.forEach(p => { 
+            let dts = state.data.penjualan_detail ? state.data.penjualan_detail.filter(d => d.ID_Invoice === p.ID_Invoice) : [];
+            
+            if(dts.length === 0) {
+                 // Jaga-jaga kalau invoice tidak punya detail
+                 csv += `${p.ID_Invoice},${p.Waktu},${p.ID_Pelanggan},${p.Kasir},${p.Cabang||state.cabang},${p.Status},-, -,0,0,${p.Total_Akhir},${p.Metode_Pembayaran}\n`;
+            } else {
+                 dts.forEach(d => {
+                      let prd = state.data.produk.find(x => x.ID_Produk === d.ID_Produk);
+                      // Hilangkan koma di nama produk agar CSV tidak hancur
+                      let namaPrd = prd ? String(prd.Nama_Produk).replace(/,/g, ' ') : d.ID_Produk; 
+                      let katPrd = prd ? prd.Kategori : "Lainnya";
+                      
+                      csv += `${p.ID_Invoice},${p.Waktu},${p.ID_Pelanggan},${p.Kasir},${p.Cabang||state.cabang},${p.Status},${namaPrd},${katPrd},${d.Harga_Satuan||0},${d.Qty||0},${d.Total_Harga||0},${p.Metode_Pembayaran}\n`;
+                 });
+            }
+        }); 
+        fileName = "Data_Detail_Penjualan.csv"; 
+
     } else if(tipe === 'pembelian') { 
         if(!state.data.pembelian || state.data.pembelian.length === 0) return showInlineNotif('error', 'Data kosong!'); 
         csv = "PO,Waktu,Supplier,Total Tagihan,Status Bayar,Admin\n"; 
@@ -1796,7 +1874,6 @@ function exportDataCSV(tipe) {
     } 
     
     let link = document.createElement("a"); 
-    // Pakai encodeURIComponent agar karakter spesial tidak memutus file CSV
     link.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csv)); 
     link.setAttribute("download", fileName); 
     document.body.appendChild(link); 
