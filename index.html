@@ -347,10 +347,44 @@ function renderModulAktif() {
     let area = document.getElementById('main-content-area'); area.innerHTML = ""; 
     try {
         switch(state.activeMenu) { case 'dashboard': area.innerHTML = viewDashboard(); renderChartDasbor(); break; case 'pos': area.innerHTML = viewPOS(); renderKeranjangPOS(); setPilihanPelanggan(); break; case 'penjualan': area.innerHTML = viewPenjualan(); filterPenjualanUI(); break; case 'produk': area.innerHTML = viewProduk(); filterProdukUI(); break; case 'stok': area.innerHTML = viewStok(); filterStokUI(); break; case 'pelanggan': area.innerHTML = viewPelanggan(); filterPelangganUI(); break; case 'supplier': area.innerHTML = viewSupplier(); filterSupplierUI(); break; case 'pembelian': area.innerHTML = viewPembelian(); renderKeranjangPO(); break; case 'laporan': area.innerHTML = viewLaporan(); renderChartLaporan(); break; case 'keuangan': area.innerHTML = viewKeuangan(); filterKeuanganUI(); break; case 'datamaster': area.innerHTML = viewDataMaster(); break; case 'pengaturan': area.innerHTML = viewPengaturan(); muatPengaturanLokal(); break; case 'akun': area.innerHTML = viewAkun(); break; }
-        document.querySelectorAll('.admin-only').forEach(el => { el.style.display = (state.role === 'KASIR') ? 'none' : ''; }); 
+        
+        let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+        document.querySelectorAll('.admin-only').forEach(el => { el.style.display = (roleNorm === 'KASIR') ? 'none' : ''; }); 
     } catch(err) { console.error("Render View Error:", err); area.innerHTML = `<div class="p-10 text-center"><i class="fa-solid fa-triangle-exclamation text-5xl text-red-500 mb-4"></i><p class="font-bold text-slate-600">Gagal memuat tampilan.</p><p class="text-xs text-slate-400 mt-2">${err.message}</p></div>`; }
 }
-function bukaAppScreen() { document.getElementById('login-screen').classList.replace('flex', 'hidden'); document.getElementById('app-screen').classList.replace('hidden', 'flex'); document.getElementById('ui-user').innerText = state.user; document.getElementById('ui-role').innerText = state.role + " (" + state.cabang + ")"; document.querySelectorAll('.admin-only').forEach(el => { el.style.display = (state.role === 'KASIR') ? 'none' : ''; }); navigasi(state.activeMenu); }
+function bukaAppScreen() { 
+    document.getElementById('login-screen').classList.replace('flex', 'hidden'); 
+    document.getElementById('app-screen').classList.replace('hidden', 'flex'); 
+    document.getElementById('ui-user').innerText = state.user; 
+    document.getElementById('ui-role').innerText = state.role + " (" + state.cabang + ")"; 
+    
+    // Normalisasi Role (Besar/Kecil/Spasi diabaikan)
+    let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+    
+    // Tarik Hak Akses Khusus dari Database
+    let myAkun = state.data.akun ? state.data.akun.find(a => String(a.Username).trim() === state.user) : null;
+    let akses = (myAkun && myAkun.Akses_Menu) ? String(myAkun.Akses_Menu).split(',') : null;
+
+    document.querySelectorAll('.menu-sidebar').forEach(el => { 
+        let mMatch = el.getAttribute('onclick').match(/navigasi\('([^']+)'\)/);
+        let mId = mMatch ? mMatch[1] : '';
+
+        if (roleNorm === 'SUPERADMIN') {
+            el.style.display = 'flex'; // Superadmin selalu buka semua
+        } else if (akses && akses.length > 0) {
+            // Jika akun punya settingan centang menu, ikuti settingannya
+            el.style.display = akses.includes(mId) ? 'flex' : 'none';
+        } else {
+            // Fallback (jika belum ada settingan centang)
+            if(roleNorm === 'KASIR' && el.classList.contains('admin-only')) {
+                el.style.display = 'none';
+            } else {
+                el.style.display = 'flex';
+            }
+        }
+    }); 
+    navigasi(state.activeMenu); 
+}
 function toggleMobileMenu() {
     let mSidebar = document.getElementById('mobile-sidebar');
     if(mSidebar.classList.contains('hidden')) { mSidebar.classList.remove('hidden'); mSidebar.style.display = 'flex'; document.getElementById('mobile-menu-container').innerHTML = document.getElementById('desktop-nav').innerHTML; let items = document.getElementById('mobile-menu-container').querySelectorAll('.menu-sidebar'); items.forEach(item => { let originalClick = item.getAttribute('onclick'); if(originalClick && !originalClick.includes('toggleMobileMenu')) { item.setAttribute('onclick', `toggleMobileMenu(); ${originalClick}`); } }); } else { mSidebar.classList.add('hidden'); mSidebar.style.display = 'none'; }
@@ -624,14 +658,12 @@ function viewProduk() {
   let opsiKatHtml = ""; listKat.forEach(k => opsiKatHtml += `<option value="${k}">${k}</option>`);
 
   let filterCabangHtml = '';
-  // Perbaikan deteksi role SUPER ADMIN
-  if(String(state.role).toUpperCase().trim() !== 'KASIR') {
+  let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+  if(roleNorm !== 'KASIR') {
       filterCabangHtml = `<select id="filter-cabang-produk" onchange="filterProdukUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white ml-3 shadow-sm"><option value="SEMUA">Semua Cabang</option>`;
       savedCabang.forEach(c => { filterCabangHtml += `<option value="${c}">${c}</option>`; });
       filterCabangHtml += `</select>`;
-  } else { 
-      filterCabangHtml = `<input type="hidden" id="filter-cabang-produk" value="${state.cabang}">`; 
-  }
+  } else { filterCabangHtml = `<input type="hidden" id="filter-cabang-produk" value="${state.cabang}">`; }
 
   return `
   <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full"> 
@@ -680,8 +712,7 @@ function filterProdukUI() {
     let filterEl = document.getElementById('filter-cabang-produk');
     let filterCabang = filterEl ? filterEl.value : 'SEMUA';
 
-    // Standarisasi String agar kebal salah spasi / huruf besar kecil
-    let roleUpper = String(state.role).toUpperCase().trim();
+    let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
     let myCab = String(state.cabang).toUpperCase().trim();
     let fCab = String(filterCabang).toUpperCase().trim();
 
@@ -693,9 +724,8 @@ function filterProdukUI() {
             let rawCabang = p.Cabang || 'Pusat';
             let pCabang = String(rawCabang).toUpperCase().trim();
             
-            // Pertahanan Filter Mutlak
-            if (roleUpper === 'KASIR') {
-                if (pCabang !== myCab && pCabang !== 'PUSAT') return; // Kasir hanya bisa lihat cabang dia + pusat
+            if (roleNorm === 'KASIR') {
+                if (pCabang !== myCab && pCabang !== 'PUSAT') return; 
             } else {
                 if (fCab !== 'SEMUA' && pCabang !== fCab) return;
             }
@@ -919,13 +949,13 @@ function filterStokUI() {
 
     if(state.data.stok && state.data.stok.length > 0) { 
         state.data.stok.slice().reverse().forEach(m => { 
-            let rawCabang = m.Cabang || 'Pusat';
-            let mCabang = String(rawCabang).toUpperCase().trim();
-
-            if (roleUpper === 'KASIR') {
-                if (mCabang !== myCab) return;
+            let rawCabang = p.Cabang || 'Pusat';
+            let pCabang = String(rawCabang).toUpperCase().trim();
+            
+            if (roleNorm === 'KASIR') {
+                if (pCabang !== myCab && pCabang !== 'PUSAT') return; 
             } else {
-                if (fCab !== 'SEMUA' && mCabang !== fCab) return;
+                if (fCab !== 'SEMUA' && pCabang !== fCab) return;
             }
 
             let col = String(m.Jenis_Pergerakan).toUpperCase().includes('MASUK') ? 'text-emerald-500' : 'text-red-500'; 
@@ -2041,66 +2071,67 @@ function viewAkun() {
   if(!savedCabang.includes("Pusat")) savedCabang.unshift("Pusat");
   let opsiCabang = ""; savedCabang.forEach(cab => opsiCabang += `<option value="${cab}">${cab}</option>`); 
   
+  let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+  let badgeMyRole = roleNorm === 'SUPERADMIN' ? 'bg-purple-500' : 'bg-blue-500';
+
+  let menuOptions = [
+      {id: 'dashboard', label: 'Dashboard'}, {id: 'pos', label: 'POS Kasir'},
+      {id: 'penjualan', label: 'Penjualan / SO'}, {id: 'produk', label: 'Produk Master'},
+      {id: 'stok', label: 'Kelola Stok'}, {id: 'pelanggan', label: 'Pelanggan'},
+      {id: 'supplier', label: 'Supplier'}, {id: 'pembelian', label: 'Pembelian (PO)'},
+      {id: 'laporan', label: 'Laporan Bisnis'}, {id: 'keuangan', label: 'Keuangan'},
+      {id: 'datamaster', label: 'Data Master'}, {id: 'pengaturan', label: 'Pengaturan'},
+      {id: 'akun', label: 'Profil Akun'}
+  ];
+  let cbHtml = menuOptions.map(m => `<label class="flex items-center gap-1.5 cursor-pointer p-1"><input type="checkbox" class="cb-akses w-3.5 h-3.5 text-emerald-600" value="${m.id}" checked> <span class="text-[10px] text-slate-700 font-bold">${m.label}</span></label>`).join('');
+
   return `
   <div class="p-6 flex flex-col lg:flex-row gap-6 h-full overflow-y-auto">
-      
-      <!-- KOLOM KIRI: PROFIL & PASSWORD -->
       <div class="w-full lg:w-1/3 flex flex-col gap-6">
-          <!-- ID Card Profile -->
           <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center relative overflow-hidden">
               <div class="absolute top-0 w-full h-24 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
               <div class="w-24 h-24 bg-white rounded-full p-2 relative z-10 mt-6 shadow-md">
-                  <div class="w-full h-full bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl">
-                      <i class="fa-solid fa-user-shield"></i>
-                  </div>
+                  <div class="w-full h-full bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-4xl"><i class="fa-solid fa-user-shield"></i></div>
               </div>
               <h3 class="font-black text-2xl text-slate-800 mt-4 uppercase tracking-tight">${state.user}</h3>
-              <p class="text-[10px] font-black text-white ${state.role === 'SUPER ADMIN' ? 'bg-purple-500' : 'bg-blue-500'} px-3 py-1 rounded-full uppercase tracking-widest mt-2 shadow-sm">${state.role}</p>
+              <p class="text-[10px] font-black text-white ${badgeMyRole} px-3 py-1 rounded-full uppercase tracking-widest mt-2 shadow-sm">${state.role}</p>
               <p class="text-xs font-bold text-slate-400 mt-3 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100"><i class="fa-solid fa-location-dot mr-1"></i> ${state.cabang || 'Pusat'}</p>
           </div>
-
-          <!-- Ubah Password Form -->
           <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <h4 class="font-black text-slate-800 mb-4 border-b border-slate-100 pb-3"><i class="fa-solid fa-lock text-orange-500 mr-2"></i> Ubah Kata Sandi</h4>
               <div class="space-y-3 mb-6">
-                  <div>
-                      <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Password Lama</label>
-                      <input type="password" id="pass-lama" class="w-full border border-slate-300 p-3 rounded-xl mt-1 font-bold outline-none focus:border-orange-500 bg-slate-50" placeholder="Masukkan sandi saat ini">
-                  </div>
-                  <div>
-                      <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Password Baru</label>
-                      <input type="password" id="pass-baru" class="w-full border border-slate-300 p-3 rounded-xl mt-1 font-bold outline-none focus:border-orange-500 bg-slate-50" placeholder="Ketik sandi baru">
-                  </div>
+                  <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Password Lama</label><input type="password" id="pass-lama" class="w-full border border-slate-300 p-3 rounded-xl mt-1 font-bold outline-none focus:border-orange-500 bg-slate-50"></div>
+                  <div><label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Password Baru</label><input type="password" id="pass-baru" class="w-full border border-slate-300 p-3 rounded-xl mt-1 font-bold outline-none focus:border-orange-500 bg-slate-50"></div>
               </div>
               <button onclick="ubahPassProfile()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-slate-900 transition flex items-center justify-center gap-2"><i class="fa-solid fa-key"></i> Simpan Password Baru</button>
           </div>
-
-          <button onclick="bukaModalConfirm('Logout', 'Yakin ingin keluar dari sistem POS & ERP ini?', 'logout', prosesLogout)" class="w-full bg-red-50 text-red-600 font-black py-4 rounded-2xl shadow-sm hover:bg-red-600 hover:text-white transition border border-red-200"><i class="fa-solid fa-power-off mr-2 text-lg"></i> KELUAR APLIKASI</button>
+          <button onclick="bukaModalConfirm('Logout', 'Yakin ingin keluar?', 'logout', prosesLogout)" class="w-full bg-red-50 text-red-600 font-black py-4 rounded-2xl shadow-sm hover:bg-red-600 hover:text-white transition border border-red-200"><i class="fa-solid fa-power-off mr-2 text-lg"></i> KELUAR APLIKASI</button>
       </div>
 
-      <!-- KOLOM KANAN: KELOLA KARYAWAN -->
-      ${state.role !== 'KASIR' ? `
+      ${roleNorm !== 'KASIR' ? `
       <div class="w-full lg:w-2/3 flex flex-col gap-6">
           <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex-1">
               <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                  <h3 class="font-black text-lg text-slate-800"><i class="fa-solid fa-users-gear text-emerald-500 mr-2"></i> Kelola Karyawan & Cabang</h3>
+                  <h3 class="font-black text-lg text-slate-800"><i class="fa-solid fa-users-gear text-emerald-500 mr-2"></i> Kelola Karyawan & Hak Akses</h3>
               </div>
 
-              <!-- Form Tambah Akun -->
               <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 mb-6 shadow-sm">
                   <h4 class="text-xs font-black text-slate-600 uppercase mb-4">Tambah Akun Baru</h4>
                   <div id="akun-inline-notif" class="hidden text-xs font-bold p-3 rounded-lg mb-4 border block"></div>
                   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
                       <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">ID Karyawan</label><input type="text" id="ak-id" placeholder="Cth: ID-01" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"></div>
-                      <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Username</label><input type="text" id="ak-user" placeholder="Nama login" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"></div>
-                      <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Password</label><input type="password" id="ak-pass" placeholder="***" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"></div>
+                      <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Username</label><input type="text" id="ak-user" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"></div>
+                      <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Password</label><input type="password" id="ak-pass" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"></div>
                       <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Role / Jabatan</label><select id="ak-role" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none"><option value="KASIR">Kasir</option><option value="ADMIN">Admin</option></select></div>
                       <div class="lg:col-span-1"><label class="text-[10px] font-bold text-slate-500 uppercase">Akses Cabang</label><select id="ak-cabang" class="w-full border border-slate-300 p-2.5 rounded-lg mt-1 text-sm font-bold bg-white focus:border-emerald-500 outline-none">${opsiCabang}</select></div>
+                      <div class="lg:col-span-5 mt-2 bg-white p-3 rounded-lg border border-slate-200">
+                          <label class="text-[10px] font-black text-emerald-600 uppercase mb-2 block border-b pb-1">Buka Akses Menu (Centang yang diizinkan)</label>
+                          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">${cbHtml}</div>
+                      </div>
                   </div>
-                  <button onclick="simpanKaryawanBaru()" id="btn-submit-akun" class="bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-emerald-700 transition flex items-center"><i class="fa-solid fa-user-plus mr-2"></i> Tambah Akun</button>
+                  <button onclick="simpanKaryawanBaru()" id="btn-submit-akun" class="bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-emerald-700 transition flex items-center mt-2"><i class="fa-solid fa-user-plus mr-2"></i> Tambah Akun</button>
               </div>
 
-              <!-- Tabel Daftar Akun -->
               <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
                   <table class="w-full text-left min-w-[600px]">
                       <thead class="bg-slate-100 text-[10px] text-slate-500 font-black uppercase tracking-wider">
@@ -2108,7 +2139,8 @@ function viewAkun() {
                       </thead>
                       <tbody class="text-sm font-bold text-slate-700 divide-y divide-slate-100">
                           ${state.data.akun && state.data.akun.length > 0 ? state.data.akun.map(a => {
-                              let badgeRole = a.Role === 'SUPER ADMIN' ? 'bg-purple-100 text-purple-700 border-purple-200' : (a.Role === 'ADMIN' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200');
+                              let rC = String(a.Role).toUpperCase().replace(/\\s+/g, '');
+                              let badgeRole = rC === 'SUPERADMIN' ? 'bg-purple-100 text-purple-700 border-purple-200' : (rC === 'ADMIN' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200');
                               let statusColor = a.Status_Aktif === 'Aktif' ? 'text-emerald-500' : 'text-red-500';
                               return `<tr class="hover:bg-slate-50 transition">
                                   <td class="p-4 pl-6 text-slate-500 font-mono text-xs">${a.ID_Karyawan || '-'}</td>
@@ -2156,11 +2188,18 @@ async function simpanKaryawanBaru() {
         notif.className="text-xs font-bold p-3 rounded-lg mb-4 bg-red-50 text-red-500 border border-red-100 block"; 
         return; 
     } 
+
+    // Ambil data menu yang dicentang
+    let checkboxes = document.querySelectorAll('.cb-akses:checked');
+    let aksesArr = [];
+    checkboxes.forEach(cb => aksesArr.push(cb.value));
+    let aksesStr = aksesArr.join(',');
+
     let btn = document.getElementById('btn-submit-akun');
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Memproses...'; 
     btn.disabled = true;
     
-    let res = await requestAPI('simpanAkunBaru', { Username: usr, Password: psw, Role: rle, Status_Aktif: 'Aktif', ID_Karyawan: idK, Cabang: cbg }); 
+    let res = await requestAPI('simpanAkunBaru', { Username: usr, Password: psw, Role: rle, Status_Aktif: 'Aktif', ID_Karyawan: idK, Cabang: cbg, Akses_Menu: aksesStr }); 
     if(res.status) { 
         showInlineNotif('success', res.msg); 
         syncDataLiveBackground(); 
