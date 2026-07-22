@@ -322,17 +322,37 @@ async function eksekusiLogin() {
 async function syncDataLiveBackground() { 
     let el = document.getElementById('sync-status'); if(el) el.innerHTML = '<i class="fa-solid fa-rotate fa-spin text-blue-500"></i> Syncing...'; 
     
-    // TARIK PENGATURAN CLOUD DULU
     await requestAPI('tarikPengaturan', {}).then(res => {
         if(res && res.status && res.data) {
             for(let key in res.data) { localStorage.setItem(key, res.data[key]); }
-            muatPengaturanLokal(); // Panggil ini setelah data diset ke localStorage
+            muatPengaturanLokal();
             if(state.activeMenu === 'datamaster') renderModulAktif();
         }
     });
 
     let res = await requestAPI('tarikDataLiveSystem', {role: state.role, cabang: state.cabang});
-    if(res && !res.msg && (res.produk || res.penjualan || res.pelanggan)) { state.data = pastikanDataAman(res.data ? res.data : res); if(el) el.innerHTML = '<i class="fa-solid fa-cloud text-emerald-500"></i> Synced'; if(state.activeMenu !== 'pos' && state.activeMenu !== 'datamaster' && state.activeMenu !== 'pengaturan') renderModulAktif(); } else { if(el) el.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-500"></i> Offline'; }
+    if(res && !res.msg && (res.produk || res.penjualan || res.pelanggan)) { 
+        let cleanData = pastikanDataAman(res.data ? res.data : res); 
+        
+        // PERTAHANAN LAPIS 2: Saring sekali lagi di aplikasi HP Kasir
+        let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+        let myCab = String(state.cabang).toUpperCase().trim();
+        if (roleNorm !== 'SUPERADMIN') {
+            let sFilter = (arr) => arr.filter(item => String(item.Cabang || 'Pusat').toUpperCase().trim() === myCab);
+            cleanData.produk = sFilter(cleanData.produk);
+            cleanData.penjualan = sFilter(cleanData.penjualan);
+            cleanData.penjualan_detail = sFilter(cleanData.penjualan_detail);
+            cleanData.stok = sFilter(cleanData.stok);
+            cleanData.keuangan = sFilter(cleanData.keuangan);
+        }
+        
+        state.data = cleanData;
+        
+        if(el) el.innerHTML = '<i class="fa-solid fa-cloud text-emerald-500"></i> Synced'; 
+        if(state.activeMenu !== 'pos' && state.activeMenu !== 'datamaster' && state.activeMenu !== 'pengaturan') renderModulAktif(); 
+    } else { 
+        if(el) el.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-500"></i> Offline'; 
+    }
 }
 function prosesLogout() { localStorage.removeItem('sanstech_session'); localStorage.removeItem('sanstech_active_menu'); state.data = pastikanDataAman({}); document.getElementById('app-screen').classList.replace('flex', 'hidden'); document.getElementById('login-screen').classList.replace('hidden', 'flex'); document.getElementById('in-user').value = ""; document.getElementById('in-pass').value = ""; }
 function navigasi(menuId) { 
@@ -724,8 +744,8 @@ function filterProdukUI() {
             let rawCabang = p.Cabang || 'Pusat';
             let pCabang = String(rawCabang).toUpperCase().trim();
             
-            if (roleNorm === 'KASIR') {
-                if (pCabang !== myCab && pCabang !== 'PUSAT') return; 
+            if (roleNorm !== 'SUPERADMIN') {
+                if (pCabang !== myCab) return; // Singkirkan pengecualian Pusat!
             } else {
                 if (fCab !== 'SEMUA' && pCabang !== fCab) return;
             }
@@ -750,7 +770,7 @@ function filterProdukUI() {
         }); 
     } 
     let el = document.getElementById('tabel-produk-ui'); 
-    if(el) { el.innerHTML = html; document.querySelectorAll('.admin-only').forEach(e => { e.style.display = (String(state.role).toUpperCase().trim() === 'KASIR') ? 'none' : ''; }); }
+    if(el) { el.innerHTML = html; document.querySelectorAll('.admin-only').forEach(e => { e.style.display = (String(state.role).toUpperCase().replace(/\s+/g, '') === 'KASIR') ? 'none' : ''; }); }
 }
 
 function bukaFormProduk(isEdit, idProduk) { 
@@ -917,8 +937,7 @@ function filterStokUI() {
     let filterEl = document.getElementById('stok-filter-cabang');
     let filterCabang = filterEl ? filterEl.value : 'SEMUA';
 
-    // Standarisasi String agar kebal salah spasi / huruf besar kecil
-    let roleUpper = String(state.role).toUpperCase().trim();
+    let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
     let myCab = String(state.cabang).toUpperCase().trim();
     let fCab = String(filterCabang).toUpperCase().trim();
 
@@ -929,11 +948,10 @@ function filterStokUI() {
             let rawCabang = p.Cabang || 'Pusat';
             let pCabang = String(rawCabang).toUpperCase().trim();
 
-            // Pertahanan Filter Mutlak
-            if (roleUpper === 'KASIR') {
-                if (pCabang !== myCab) return; // KASIR dilarang keras lihat cabang lain
+            if (roleNorm !== 'SUPERADMIN') {
+                if (pCabang !== myCab) return; 
             } else {
-                if (fCab !== 'SEMUA' && pCabang !== fCab) return; // ADMIN bebas filter
+                if (fCab !== 'SEMUA' && pCabang !== fCab) return; 
             }
 
             let isHabis = parseInt(p.Stok_Saat_Ini) <= 0; 
@@ -949,13 +967,13 @@ function filterStokUI() {
 
     if(state.data.stok && state.data.stok.length > 0) { 
         state.data.stok.slice().reverse().forEach(m => { 
-            let rawCabang = p.Cabang || 'Pusat';
-            let pCabang = String(rawCabang).toUpperCase().trim();
+            let rawCabang = m.Cabang || 'Pusat'; // <--- TYPO FIXED DI SINI (sebelumnya p.Cabang)
+            let mCabang = String(rawCabang).toUpperCase().trim();
             
-            if (roleNorm === 'KASIR') {
-                if (pCabang !== myCab && pCabang !== 'PUSAT') return; 
+            if (roleNorm !== 'SUPERADMIN') {
+                if (mCabang !== myCab) return;
             } else {
-                if (fCab !== 'SEMUA' && pCabang !== fCab) return;
+                if (fCab !== 'SEMUA' && mCabang !== fCab) return;
             }
 
             let col = String(m.Jenis_Pergerakan).toUpperCase().includes('MASUK') ? 'text-emerald-500' : 'text-red-500'; 
