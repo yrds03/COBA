@@ -290,7 +290,6 @@ async function simpanMasterLokal() {
 }
 async function hapusMasterLokal(idList, itemValue, namaModul) {
     let savedArr = JSON.parse(localStorage.getItem('sanstech_' + idList) || "[]");
-    // Cari posisi data berdasarkan NAMA ITEM yang akan dihapus
     let idx = savedArr.indexOf(itemValue);
     
     if(idx > -1) { 
@@ -357,21 +356,20 @@ async function syncDataLiveBackground() {
         if(el) el.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-500"></i> Offline'; 
     }
 }
-function prosesLogout() { localStorage.removeItem('sanstech_session'); localStorage.removeItem('sanstech_active_menu'); state.data = pastikanDataAman({}); document.getElementById('app-screen').classList.replace('flex', 'hidden'); document.getElementById('login-screen').classList.replace('hidden', 'flex'); document.getElementById('in-user').value = ""; document.getElementById('in-pass').value = ""; }
+function prosesLogout() { 
+    localStorage.removeItem('sanstech_session'); localStorage.removeItem('sanstech_active_menu'); state.data = pastikanDataAman({}); 
+    document.getElementById('app-screen').classList.replace('flex', 'hidden'); 
+    document.getElementById('login-screen').classList.replace('hidden', 'flex'); 
+    document.getElementById('in-user').value = ""; document.getElementById('in-pass').value = ""; 
+}
+
 function navigasi(menuId) { 
     state.activeMenu = menuId; localStorage.setItem('sanstech_active_menu', menuId); 
     const menuTitles = { dashboard: "Dashboard", pos: "Sistem Kasir", penjualan: "Penjualan / SO", produk: "Produk Master", stok: "Kelola Stok", pelanggan: "Pelanggan", supplier: "Supplier", pembelian: "Pembelian (PO)", laporan: "Laporan & Analisis", keuangan: "Keuangan", datamaster: "Data Master", pengaturan: "Pengaturan", akun: "Profil Akun" };
     document.getElementById('ui-title').innerText = menuTitles[menuId] || "Aplikasi"; document.getElementById('inline-global-notif').classList.add('hidden'); document.querySelectorAll('.menu-sidebar').forEach(el => el.classList.remove('active')); 
-    let actEl = document.querySelector(`#desktop-nav .menu-sidebar[onclick="navigasi('${menuId}')"]`); if(actEl) actEl.classList.add('active'); 
-    let actElMob = document.querySelector(`#mobile-menu-container .menu-sidebar[onclick="toggleMobileMenu(); navigasi('${menuId}')"]`); if(actElMob) actElMob.classList.add('active'); 
+    let actEl = document.querySelector(`#desktop-nav .menu-sidebar[onclick*="navigasi('${menuId}')"]`); if(actEl) actEl.classList.add('active'); 
+    let actElMob = document.querySelector(`#mobile-menu-container .menu-sidebar[onclick*="navigasi('${menuId}')"]`); if(actElMob) actElMob.classList.add('active'); 
     renderModulAktif(); 
-}
-function bukaAppScreen() { 
-    document.getElementById('login-screen').classList.replace('flex', 'hidden'); 
-    document.getElementById('app-screen').classList.replace('hidden', 'flex'); 
-    document.getElementById('ui-user').innerText = state.user; 
-    document.getElementById('ui-role').innerText = state.role + " (" + state.cabang + ")"; 
-    navigasi(state.activeMenu); // Cukup panggil render dari sini
 }
 
 function renderModulAktif() {
@@ -393,27 +391,45 @@ function renderModulAktif() {
             case 'akun': area.innerHTML = viewAkun(); break; 
         }
         
-        // LOGIKA HAK AKSES MENU (DIPERBAIKI)
+        // LOGIKA HAK AKSES MENU
         let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
         let myAkun = state.data.akun ? state.data.akun.find(a => String(a.Username).trim() === state.user) : null;
         let akses = (myAkun && myAkun.Akses_Menu) ? String(myAkun.Akses_Menu).split(',') : null;
         
-        // 1. Sembunyikan tombol admin di DALAM layar konten untuk Kasir
+        // 1. Sembunyikan tombol admin di DALAM layar konten
         document.querySelectorAll('#main-content-area .admin-only').forEach(el => { 
             el.style.display = (roleNorm === 'KASIR') ? 'none' : ''; 
         });
 
-        // 2. Terapkan Centang Akses ke SEMUA Menu Sidebar (Desktop & Mobile)
-        document.querySelectorAll('[onclick*="navigasi("]').forEach(el => {
+        // 2. Terapkan Centang Akses ke SEMUA Menu Sidebar
+        document.querySelectorAll('.menu-sidebar').forEach(el => {
             let mMatch = el.getAttribute('onclick').match(/navigasi\('([^']+)'\)/);
             if (mMatch) {
                 let mId = mMatch[1];
                 if (roleNorm === 'SUPERADMIN') {
-                    el.style.display = ''; // Superadmin bebas kemana saja
+                    el.style.display = 'flex';
                 } else if (akses && akses.length > 0) {
-                    el.style.display = akses.includes(mId) ? '' : 'none'; // Sesuai Centang DB
+                    el.style.display = akses.includes(mId) ? 'flex' : 'none';
                 } else {
-                    // Aturan default jika belum dicentang
+                    if (roleNorm === 'KASIR' && el.classList.contains('admin-only')) {
+                        el.style.display = 'none';
+                    } else {
+                        el.style.display = 'flex';
+                    }
+                }
+            }
+        });
+
+        // 3. Terapkan juga ke Menu Bawah (Mobile Footer)
+        document.querySelectorAll('.md\\:hidden.fixed.bottom-0 > div').forEach(el => {
+            let mMatch = el.getAttribute('onclick').match(/navigasi\('([^']+)'\)/);
+            if (mMatch) {
+                let mId = mMatch[1];
+                if (roleNorm === 'SUPERADMIN') {
+                    el.style.display = '';
+                } else if (akses && akses.length > 0) {
+                    el.style.display = akses.includes(mId) ? '' : 'none';
+                } else {
                     if (roleNorm === 'KASIR' && el.classList.contains('admin-only')) {
                         el.style.display = 'none';
                     } else {
@@ -422,39 +438,21 @@ function renderModulAktif() {
                 }
             }
         });
+
     } catch(err) { 
         console.error("Render View Error:", err); 
         area.innerHTML = `<div class="p-10 text-center"><i class="fa-solid fa-triangle-exclamation text-5xl text-red-500 mb-4"></i><p class="font-bold text-slate-600">Gagal memuat tampilan.</p><p class="text-xs text-slate-400 mt-2">${err.message}</p></div>`; 
     }
-} 
-    
-    // Normalisasi Role (Besar/Kecil/Spasi diabaikan)
-    let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
-    
-    // Tarik Hak Akses Khusus dari Database
-    let myAkun = state.data.akun ? state.data.akun.find(a => String(a.Username).trim() === state.user) : null;
-    let akses = (myAkun && myAkun.Akses_Menu) ? String(myAkun.Akses_Menu).split(',') : null;
+}
 
-    document.querySelectorAll('.menu-sidebar').forEach(el => { 
-        let mMatch = el.getAttribute('onclick').match(/navigasi\('([^']+)'\)/);
-        let mId = mMatch ? mMatch[1] : '';
-
-        if (roleNorm === 'SUPERADMIN') {
-            el.style.display = 'flex'; // Superadmin selalu buka semua
-        } else if (akses && akses.length > 0) {
-            // Jika akun punya settingan centang menu, ikuti settingannya
-            el.style.display = akses.includes(mId) ? 'flex' : 'none';
-        } else {
-            // Fallback (jika belum ada settingan centang)
-            if(roleNorm === 'KASIR' && el.classList.contains('admin-only')) {
-                el.style.display = 'none';
-            } else {
-                el.style.display = 'flex';
-            }
-        }
-    }); 
+function bukaAppScreen() { 
+    document.getElementById('login-screen').classList.replace('flex', 'hidden'); 
+    document.getElementById('app-screen').classList.replace('hidden', 'flex'); 
+    document.getElementById('ui-user').innerText = state.user; 
+    document.getElementById('ui-role').innerText = state.role + " (" + state.cabang + ")"; 
     navigasi(state.activeMenu); 
 }
+
 function toggleMobileMenu() {
     let mSidebar = document.getElementById('mobile-sidebar');
     if(mSidebar.classList.contains('hidden')) { mSidebar.classList.remove('hidden'); mSidebar.style.display = 'flex'; document.getElementById('mobile-menu-container').innerHTML = document.getElementById('desktop-nav').innerHTML; let items = document.getElementById('mobile-menu-container').querySelectorAll('.menu-sidebar'); items.forEach(item => { let originalClick = item.getAttribute('onclick'); if(originalClick && !originalClick.includes('toggleMobileMenu')) { item.setAttribute('onclick', `toggleMobileMenu(); ${originalClick}`); } }); } else { mSidebar.classList.add('hidden'); mSidebar.style.display = 'none'; }
@@ -2084,7 +2082,6 @@ function viewDataMaster() {
       let liHtml = ''; 
       arr.forEach((item) => { 
           let isDefault = (item === defaultVal);
-          // UBAH: Sekarang tombol hapus mengunci 'NAMA ITEM' bukan nomor urutan
           let btnHapus = isDefault ? `<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black border border-slate-200 uppercase">Sistem</span>` : `<button onclick="hapusMasterLokal('${idKey}', '${item}', '${title}')" class="text-red-400 hover:text-red-600 transition bg-red-50 w-6 h-6 rounded flex items-center justify-center border border-red-100" title="Hapus"><i class="fa-solid fa-trash text-[10px]"></i></button>`;
           liHtml += `<li class="flex justify-between items-center bg-white border border-slate-100 p-2.5 rounded-lg shadow-sm mb-1.5 hover:border-blue-200 transition"><span class="font-bold text-slate-700 text-xs">${item}</span>${btnHapus}</li>`; 
       }); 
