@@ -363,20 +363,67 @@ function navigasi(menuId) {
     let actElMob = document.querySelector(`#mobile-menu-container .menu-sidebar[onclick="toggleMobileMenu(); navigasi('${menuId}')"]`); if(actElMob) actElMob.classList.add('active'); 
     renderModulAktif(); 
 }
-function renderModulAktif() {
-    let area = document.getElementById('main-content-area'); area.innerHTML = ""; 
-    try {
-        switch(state.activeMenu) { case 'dashboard': area.innerHTML = viewDashboard(); renderChartDasbor(); break; case 'pos': area.innerHTML = viewPOS(); renderKeranjangPOS(); setPilihanPelanggan(); break; case 'penjualan': area.innerHTML = viewPenjualan(); filterPenjualanUI(); break; case 'produk': area.innerHTML = viewProduk(); filterProdukUI(); break; case 'stok': area.innerHTML = viewStok(); filterStokUI(); break; case 'pelanggan': area.innerHTML = viewPelanggan(); filterPelangganUI(); break; case 'supplier': area.innerHTML = viewSupplier(); filterSupplierUI(); break; case 'pembelian': area.innerHTML = viewPembelian(); renderKeranjangPO(); break; case 'laporan': area.innerHTML = viewLaporan(); renderChartLaporan(); break; case 'keuangan': area.innerHTML = viewKeuangan(); filterKeuanganUI(); break; case 'datamaster': area.innerHTML = viewDataMaster(); break; case 'pengaturan': area.innerHTML = viewPengaturan(); muatPengaturanLokal(); break; case 'akun': area.innerHTML = viewAkun(); break; }
-        
-        let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
-        document.querySelectorAll('.admin-only').forEach(el => { el.style.display = (roleNorm === 'KASIR') ? 'none' : ''; }); 
-    } catch(err) { console.error("Render View Error:", err); area.innerHTML = `<div class="p-10 text-center"><i class="fa-solid fa-triangle-exclamation text-5xl text-red-500 mb-4"></i><p class="font-bold text-slate-600">Gagal memuat tampilan.</p><p class="text-xs text-slate-400 mt-2">${err.message}</p></div>`; }
-}
 function bukaAppScreen() { 
     document.getElementById('login-screen').classList.replace('flex', 'hidden'); 
     document.getElementById('app-screen').classList.replace('hidden', 'flex'); 
     document.getElementById('ui-user').innerText = state.user; 
     document.getElementById('ui-role').innerText = state.role + " (" + state.cabang + ")"; 
+    navigasi(state.activeMenu); // Cukup panggil render dari sini
+}
+
+function renderModulAktif() {
+    let area = document.getElementById('main-content-area'); area.innerHTML = ""; 
+    try {
+        switch(state.activeMenu) { 
+            case 'dashboard': area.innerHTML = viewDashboard(); renderChartDasbor(); break; 
+            case 'pos': area.innerHTML = viewPOS(); renderKeranjangPOS(); setPilihanPelanggan(); break; 
+            case 'penjualan': area.innerHTML = viewPenjualan(); filterPenjualanUI(); break; 
+            case 'produk': area.innerHTML = viewProduk(); filterProdukUI(); break; 
+            case 'stok': area.innerHTML = viewStok(); filterStokUI(); break; 
+            case 'pelanggan': area.innerHTML = viewPelanggan(); filterPelangganUI(); break; 
+            case 'supplier': area.innerHTML = viewSupplier(); filterSupplierUI(); break; 
+            case 'pembelian': area.innerHTML = viewPembelian(); renderKeranjangPO(); break; 
+            case 'laporan': area.innerHTML = viewLaporan(); renderChartLaporan(); break; 
+            case 'keuangan': area.innerHTML = viewKeuangan(); filterKeuanganUI(); break; 
+            case 'datamaster': area.innerHTML = viewDataMaster(); break; 
+            case 'pengaturan': area.innerHTML = viewPengaturan(); muatPengaturanLokal(); break; 
+            case 'akun': area.innerHTML = viewAkun(); break; 
+        }
+        
+        // LOGIKA HAK AKSES MENU (DIPERBAIKI)
+        let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
+        let myAkun = state.data.akun ? state.data.akun.find(a => String(a.Username).trim() === state.user) : null;
+        let akses = (myAkun && myAkun.Akses_Menu) ? String(myAkun.Akses_Menu).split(',') : null;
+        
+        // 1. Sembunyikan tombol admin di DALAM layar konten untuk Kasir
+        document.querySelectorAll('#main-content-area .admin-only').forEach(el => { 
+            el.style.display = (roleNorm === 'KASIR') ? 'none' : ''; 
+        });
+
+        // 2. Terapkan Centang Akses ke SEMUA Menu Sidebar (Desktop & Mobile)
+        document.querySelectorAll('[onclick*="navigasi("]').forEach(el => {
+            let mMatch = el.getAttribute('onclick').match(/navigasi\('([^']+)'\)/);
+            if (mMatch) {
+                let mId = mMatch[1];
+                if (roleNorm === 'SUPERADMIN') {
+                    el.style.display = ''; // Superadmin bebas kemana saja
+                } else if (akses && akses.length > 0) {
+                    el.style.display = akses.includes(mId) ? '' : 'none'; // Sesuai Centang DB
+                } else {
+                    // Aturan default jika belum dicentang
+                    if (roleNorm === 'KASIR' && el.classList.contains('admin-only')) {
+                        el.style.display = 'none';
+                    } else {
+                        el.style.display = '';
+                    }
+                }
+            }
+        });
+    } catch(err) { 
+        console.error("Render View Error:", err); 
+        area.innerHTML = `<div class="p-10 text-center"><i class="fa-solid fa-triangle-exclamation text-5xl text-red-500 mb-4"></i><p class="font-bold text-slate-600">Gagal memuat tampilan.</p><p class="text-xs text-slate-400 mt-2">${err.message}</p></div>`; 
+    }
+} 
     
     // Normalisasi Role (Besar/Kecil/Spasi diabaikan)
     let roleNorm = String(state.role).toUpperCase().replace(/\s+/g, '');
