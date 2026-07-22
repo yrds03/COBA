@@ -1751,6 +1751,20 @@ function viewPengaturan() {
               <textarea id="set-struk-footer" class="w-full border border-slate-300 p-3 rounded-xl mt-1 mb-4 font-bold bg-white focus:border-orange-500 outline-none" rows="2"></textarea>
               <button class="w-full bg-orange-500 text-white font-bold py-3 rounded-xl shadow hover:bg-orange-600 transition" onclick="simpanPengaturanLokal()"><i class="fa-solid fa-floppy-disk mr-2"></i>Simpan Format</button>
           </div>
+          <div class="bg-indigo-50 p-6 rounded-2xl border border-indigo-200 shadow-sm">
+              <h3 class="font-black text-lg mb-4 text-indigo-800"><i class="fa-solid fa-print mr-2 text-indigo-500"></i>Mode Printer Kasir</h3>
+              <p class="text-sm text-indigo-700 mb-3 font-bold">Sistem ini menggunakan fitur cerdas (Auto-Detect) untuk memilih printer:</p>
+              <div class="space-y-3">
+                  <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                      <p class="font-black text-slate-700 text-sm"><i class="fa-brands fa-bluetooth text-blue-500 mr-2"></i>Printer Bluetooth (Thermal Mini)</p>
+                      <p class="text-xs text-slate-500 mt-1">Gunakan tombol <span class="bg-indigo-500 text-white px-2 py-0.5 rounded text-[10px] mx-1">Connect BT</span> di sudut kanan atas layar untuk menghubungkan sistem ke printer thermal sebelum transaksi.</p>
+                  </div>
+                  <div class="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm">
+                      <p class="font-black text-slate-700 text-sm"><i class="fa-solid fa-desktop text-slate-500 mr-2"></i>Printer USB / Komputer Standar</p>
+                      <p class="text-xs text-slate-500 mt-1">Jika tombol Bluetooth tidak dikoneksikan, sistem otomatis beralih ke Mode USB. Struk akan memunculkan dialog 'Print' standar bawaan Windows/Mac.</p>
+                  </div>
+              </div>
+          </div>
       </div> 
 
       <!-- TAB PAJAK & QRIS -->
@@ -1797,7 +1811,7 @@ function viewPengaturan() {
 
   </div> `; 
 }
-
+  
 function switchPengaturanTab(tab, el) { 
     ['profil','printer','qris','backup','api'].forEach(t => document.getElementById('pg-'+t).classList.add('hidden')); 
     el.parentElement.querySelectorAll('.tab-custom').forEach(e => e.classList.remove('active')); 
@@ -1840,7 +1854,38 @@ function muatPengaturanLokal() {
         }
     }
 }
-
+  
+async function simpanPengaturanLokal() { 
+    let payload = {};
+    // Peta ID elemen HTML ke Key Database yang benar
+    let fields = [
+        { id: 'set-nama-toko', key: 'sanstech_nama_toko' },
+        { id: 'set-alamat-toko', key: 'sanstech_alamat_toko' },
+        { id: 'set-struk-header', key: 'sanstech_struk_header' },
+        { id: 'set-struk-footer', key: 'sanstech_struk_footer' },
+        { id: 'set-wa-template', key: 'sanstech_wa_template' },
+        { id: 'set-pajak', key: 'sanstech_pajak' },
+        { id: 'set-api-key', key: 'sanstech_api_key' },
+        { id: 'set-webhook', key: 'sanstech_webhook' }
+    ];
+    
+    fields.forEach(f => {
+        let el = document.getElementById(f.id);
+        if(el) { 
+            localStorage.setItem(f.key, el.value); 
+            payload[f.key] = el.value; 
+        }
+    });
+    
+    showInlineNotif('info', 'Menyimpan ke Cloud...');
+    let res = await requestAPI('simpanPengaturan', payload);
+    if(res && res.status) {
+        showInlineNotif('success', 'Pengaturan Permanen Disimpan!'); 
+    } else {
+        showInlineNotif('error', 'Gagal simpan ke server!');
+    }
+}
+  
 function handleQRISUpload(event) { 
     let file = event.target.files[0]; if(!file) return; 
     let reader = new FileReader(); reader.onload = function(e) { 
