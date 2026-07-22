@@ -622,7 +622,7 @@ function viewProduk() {
   let opsiKatHtml = ""; listKat.forEach(k => opsiKatHtml += `<option value="${k}">${k}</option>`);
 
   let filterCabangHtml = '';
-  if(state.role === 'SUPERADMIN' || state.role === 'ADMIN') {
+  if(state.role !== 'KASIR') {
       filterCabangHtml = `<select id="filter-cabang-produk" onchange="filterProdukUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white ml-3 shadow-sm"><option value="SEMUA">Semua Cabang</option>`;
       savedCabang.forEach(c => { filterCabangHtml += `<option value="${c}">${c}</option>`; });
       filterCabangHtml += `</select>`;
@@ -799,8 +799,8 @@ function viewStok() {
     savedCabang.forEach(cab => opsiCabangTFHtml += `<option value="${cab}">${cab}</option>`); 
 
     let filterCabangHtml = '';
-    if(state.role === 'SUPERADMIN' || state.role === 'ADMIN') {
-        filterCabangHtml = `<select id="stok-filter-cabang" onchange="filterStokUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white min-w-[150px]"><option value="SEMUA">Semua Cabang</option>`;
+  if(state.role !== 'KASIR') {
+      filterCabangHtml = `<select id="stok-filter-cabang" onchange="filterStokUI()" class="border border-slate-200 p-2 rounded-lg text-xs font-bold outline-none focus:border-blue-500 bg-white min-w-[150px]"><option value="SEMUA">Semua Cabang</option>`;
         savedCabang.forEach(c => { filterCabangHtml += `<option value="${c}">${c}</option>`; });
         filterCabangHtml += `</select>`;
     } else {
@@ -1785,15 +1785,33 @@ function muatPengaturanLokal() {
 
 async function simpanPengaturanLokal() { 
     let payload = {};
-    let keys = ['nama_toko','alamat_toko','struk_header','struk_footer','wa_template','pajak','api_key','webhook'];
-    keys.forEach(k => {
-        let el = document.getElementById('set-'+k);
-        if(el) { localStorage.setItem('sanstech_'+k, el.value); payload['sanstech_'+k] = el.value; }
+    // Kita petakan ID HTML (strip) ke Key Database (underscore) dengan akurat
+    let fields = [
+        { id: 'set-nama-toko', key: 'sanstech_nama_toko' },
+        { id: 'set-alamat-toko', key: 'sanstech_alamat_toko' },
+        { id: 'set-struk-header', key: 'sanstech_struk_header' },
+        { id: 'set-struk-footer', key: 'sanstech_struk_footer' },
+        { id: 'set-wa-template', key: 'sanstech_wa_template' },
+        { id: 'set-pajak', key: 'sanstech_pajak' },
+        { id: 'set-api-key', key: 'sanstech_api_key' },
+        { id: 'set-webhook', key: 'sanstech_webhook' }
+    ];
+    
+    fields.forEach(f => {
+        let el = document.getElementById(f.id);
+        if(el) { 
+            localStorage.setItem(f.key, el.value); 
+            payload[f.key] = el.value; 
+        }
     });
+    
     showInlineNotif('info', 'Menyimpan ke Cloud...');
     let res = await requestAPI('simpanPengaturan', payload);
-    if(res && res.status) showInlineNotif('success', 'Pengaturan Permanen Disimpan!'); 
-    else showInlineNotif('error', 'Gagal simpan ke server!');
+    if(res && res.status) {
+        showInlineNotif('success', 'Pengaturan Permanen Disimpan!'); 
+    } else {
+        showInlineNotif('error', 'Gagal simpan ke server!');
+    }
 }
 
 function handleQRISUpload(event) { 
