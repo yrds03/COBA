@@ -185,7 +185,7 @@ async function requestAPI(action, payload = {}) {
 
 let state = { user: "", role: "", cabang: "Pusat", activeMenu: "dashboard", data: { produk: [], pelanggan: [], supplier: [], penjualan: [], penjualan_detail: [], stok: [], keuangan: [], akun: [] }, keranjangPOS: [], keranjangPO: [], metodeBayar: "Tunai", isSO: false, posTemp: {} };
 let chartDash = null; let chartLaporan = null; let lastInvoice = ""; let lastTotal = 0; let kameraContext = 'pos'; 
-const formatRp = (angka) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka||0);
+const formatRp = (angka) => "Rp " + parseInt(angka||0).toLocaleString('id-ID');
 
 function pastikanDataAman(rawData) {
     let aman = rawData || {};
