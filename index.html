@@ -288,10 +288,13 @@ async function simpanMasterLokal() {
     } else { showInlineNotif('error', 'Data sudah ada dalam daftar!'); } 
     document.getElementById('modal-input-master').classList.replace('flex','hidden'); 
 }
-async function hapusMasterLokal(idList, idx, namaModul) {
+async function hapusMasterLokal(idList, itemValue, namaModul) {
     let savedArr = JSON.parse(localStorage.getItem('sanstech_' + idList) || "[]");
-    if(idx > 0 && idx < savedArr.length) { 
-        bukaModalConfirm("Hapus " + namaModul, `Yakin menghapus '${savedArr[idx]}'? Data yang terhapus akan hilang dari semua cabang.`, 'hapus', async function() {
+    // Cari posisi data berdasarkan NAMA ITEM yang akan dihapus
+    let idx = savedArr.indexOf(itemValue);
+    
+    if(idx > -1) { 
+        bukaModalConfirm("Hapus " + namaModul, `Yakin menghapus '${itemValue}'? Data yang terhapus akan hilang dari semua cabang.`, 'hapus', async function() {
             let deletedVal = savedArr.splice(idx, 1)[0];
             let strData = JSON.stringify(savedArr);
             localStorage.setItem('sanstech_' + idList, strData);
@@ -2075,14 +2078,14 @@ function viewDataMaster() {
       }
       
       if(arr.length === 0 || !arr.includes(defaultVal)) {
-          arr.unshift(defaultVal); // Pastikan nilai default selalu ada di posisi pertama
+          arr.unshift(defaultVal); 
       }
       
       let liHtml = ''; 
-      arr.forEach((item, idx) => { 
-          // Jika item adalah nilai default (Umum, Pusat, Pcs, Tunai), cegah penghapusan
+      arr.forEach((item) => { 
           let isDefault = (item === defaultVal);
-          let btnHapus = isDefault ? `<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black border border-slate-200 uppercase">Sistem</span>` : `<button onclick="hapusMasterLokal('${idKey}', ${idx}, '${title}')" class="text-red-400 hover:text-red-600 transition bg-red-50 w-6 h-6 rounded flex items-center justify-center border border-red-100" title="Hapus"><i class="fa-solid fa-trash text-[10px]"></i></button>`;
+          // UBAH: Sekarang tombol hapus mengunci 'NAMA ITEM' bukan nomor urutan
+          let btnHapus = isDefault ? `<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded font-black border border-slate-200 uppercase">Sistem</span>` : `<button onclick="hapusMasterLokal('${idKey}', '${item}', '${title}')" class="text-red-400 hover:text-red-600 transition bg-red-50 w-6 h-6 rounded flex items-center justify-center border border-red-100" title="Hapus"><i class="fa-solid fa-trash text-[10px]"></i></button>`;
           liHtml += `<li class="flex justify-between items-center bg-white border border-slate-100 p-2.5 rounded-lg shadow-sm mb-1.5 hover:border-blue-200 transition"><span class="font-bold text-slate-700 text-xs">${item}</span>${btnHapus}</li>`; 
       }); 
       return liHtml; 
