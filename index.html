@@ -1854,38 +1854,45 @@ function muatPengaturanLokal() {
         }
     }
 }
-  
 async function simpanPengaturanLokal() { 
-    let payload = {};
-    // Peta ID elemen HTML ke Key Database yang benar
-    let fields = [
-        { id: 'set-nama-toko', key: 'sanstech_nama_toko' },
-        { id: 'set-alamat-toko', key: 'sanstech_alamat_toko' },
-        { id: 'set-struk-header', key: 'sanstech_struk_header' },
-        { id: 'set-struk-footer', key: 'sanstech_struk_footer' },
-        { id: 'set-wa-template', key: 'sanstech_wa_template' },
-        { id: 'set-pajak', key: 'sanstech_pajak' },
-        { id: 'set-api-key', key: 'sanstech_api_key' },
-        { id: 'set-webhook', key: 'sanstech_webhook' }
-    ];
-    
-    fields.forEach(f => {
-        let el = document.getElementById(f.id);
-        if(el) { 
-            localStorage.setItem(f.key, el.value); 
-            payload[f.key] = el.value; 
+    try {
+        showInlineNotif('info', 'Menyimpan Pengaturan ke Cloud...');
+        
+        let payload = {};
+        // Mapping ID HTML ke Key Database yang akurat 100%
+        let idMap = {
+            'set-nama-toko': 'sanstech_nama_toko',
+            'set-alamat-toko': 'sanstech_alamat_toko',
+            'set-struk-header': 'sanstech_struk_header',
+            'set-struk-footer': 'sanstech_struk_footer',
+            'set-wa-template': 'sanstech_wa_template',
+            'set-pajak': 'sanstech_pajak',
+            'set-api-key': 'sanstech_api_key',
+            'set-webhook': 'sanstech_webhook'
+        };
+
+        // Ambil semua isian form
+        for (let htmlId in idMap) {
+            let el = document.getElementById(htmlId);
+            if (el) {
+                let dbKey = idMap[htmlId];
+                localStorage.setItem(dbKey, el.value);
+                payload[dbKey] = el.value;
+            }
         }
-    });
-    
-    showInlineNotif('info', 'Menyimpan ke Cloud...');
-    let res = await requestAPI('simpanPengaturan', payload);
-    if(res && res.status) {
-        showInlineNotif('success', 'Pengaturan Permanen Disimpan!'); 
-    } else {
-        showInlineNotif('error', 'Gagal simpan ke server!');
+        
+        // Kirim ke Google Sheet
+        let res = await requestAPI('simpanPengaturan', payload);
+        
+        if (res && res.status) {
+            showInlineNotif('success', 'Pengaturan Berhasil Disimpan Permanen!'); 
+        } else {
+            showInlineNotif('error', 'Gagal simpan ke server: ' + (res.msg || 'Error API'));
+        }
+    } catch(err) {
+        showInlineNotif('error', 'Error Sistem: ' + err.message);
     }
-}
-  
+}  
 function handleQRISUpload(event) { 
     let file = event.target.files[0]; if(!file) return; 
     let reader = new FileReader(); reader.onload = function(e) { 
