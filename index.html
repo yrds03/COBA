@@ -561,8 +561,43 @@ function tampilkanQrisBayar() { let tot = state.posTemp.total_akhir; document.ge
 function resetKasir() { state.keranjangPOS = []; renderKeranjangPOS(); pilihMetodePOS("Tunai"); if(document.getElementById('pos-is-so')) document.getElementById('pos-is-so').checked = false; state.isSO = false; document.getElementById('area-setelah-bayar').classList.replace('flex','hidden'); document.getElementById('area-bayar').classList.remove('hidden'); document.getElementById('pos-barcode').focus(); }
 function cetakUlangStruk() { if(lastInvoice) jalankanCetakStruk(lastInvoice, state.posTemp.total_akhir); }
 function bukaModalWA() { document.getElementById('input-wa-pelanggan').value = ""; document.getElementById('modal-wa').classList.replace('hidden','flex'); }
-function eksekusiKirimWA() { let hp = document.getElementById('input-wa-pelanggan').value.trim(); if(!hp) return showInlineNotif('error', 'Nomor WA wajib diisi!'); if(hp.startsWith('0')) hp = '62' + hp.substring(1); let defaultTemplate = "*[NAMA_TOKO]*\n--------------------\n*INVOICE:* [INVOICE]\n*TOTAL TAGIHAN:* [TOTAL]\n*METODE:* [METODE]\n--------------------\nTerima kasih!"; let template = localStorage.getItem('sanstech_wa_template') || defaultTemplate; let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; let teks = template.replace('[NAMA_TOKO]', namaToko).replace('[INVOICE]', lastInvoice).replace('[TOTAL]', formatRp(lastTotal)).replace('[METODE]', state.metodeBayar); window.open(`https://wa.me/${hp}?text=${encodeURIComponent(teks)}`, '_blank'); document.getElementById('modal-wa').classList.replace('flex','hidden'); }
-function salinTeksStruk() { let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; let teks = `*${namaToko}*\n--------------------\n*INV:* ${lastInvoice}\n*TOTAL:* ${formatRp(lastTotal)}\n*METODE:* ${state.metodeBayar}\n--------------------\nTerima kasih!`; navigator.clipboard.writeText(teks).then(() => { showInlineNotif('success', 'Teks Struk Berhasil Disalin!'); }).catch(err => { showInlineNotif('error', 'Gagal Salin Teks!'); }); }
+
+function eksekusiKirimWA() { 
+    let hp = document.getElementById('input-wa-pelanggan').value.trim(); 
+    if(!hp) return showInlineNotif('error', 'Nomor WA wajib diisi!'); 
+    if(hp.startsWith('0')) hp = '62' + hp.substring(1); 
+    let defaultTemplate = "*[NAMA_TOKO]*\n--------------------\n*INVOICE:* [INVOICE]\n*TOTAL TAGIHAN:* [TOTAL]\n*METODE:* [METODE]\n--------------------\nTerima kasih!"; 
+    let template = localStorage.getItem('sanstech_wa_template') || defaultTemplate; 
+    
+    // LOGIKA OTOMATIS GANTI NAMA PUSAT JADI CABANG
+    let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
+    if(state.cabang && String(state.cabang).toUpperCase() !== 'PUSAT') {
+        if(namaToko.toUpperCase().includes('PUSAT')) {
+            namaToko = namaToko.replace(/PUSAT/i, state.cabang.toUpperCase());
+        } else {
+            namaToko = namaToko + " " + state.cabang.toUpperCase();
+        }
+    }
+
+    let teks = template.replace('[NAMA_TOKO]', namaToko).replace('[INVOICE]', lastInvoice).replace('[TOTAL]', formatRp(lastTotal)).replace('[METODE]', state.metodeBayar); 
+    window.open(`https://wa.me/${hp}?text=${encodeURIComponent(teks)}`, '_blank'); 
+    document.getElementById('modal-wa').classList.replace('flex','hidden'); 
+}
+
+function salinTeksStruk() { 
+    // LOGIKA OTOMATIS GANTI NAMA PUSAT JADI CABANG
+    let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
+    if(state.cabang && String(state.cabang).toUpperCase() !== 'PUSAT') {
+        if(namaToko.toUpperCase().includes('PUSAT')) {
+            namaToko = namaToko.replace(/PUSAT/i, state.cabang.toUpperCase());
+        } else {
+            namaToko = namaToko + " " + state.cabang.toUpperCase();
+        }
+    }
+
+    let teks = `*${namaToko}*\n--------------------\n*INV:* ${lastInvoice}\n*TOTAL:* ${formatRp(lastTotal)}\n*METODE:* ${state.metodeBayar}\n--------------------\nTerima kasih!`; 
+    navigator.clipboard.writeText(teks).then(() => { showInlineNotif('success', 'Teks Struk Berhasil Disalin!'); }).catch(err => { showInlineNotif('error', 'Gagal Salin Teks!'); }); 
+}
 
 async function prosesCheckoutPOS() { 
     if(state.keranjangPOS.length === 0) return showInlineNotif('error', 'Keranjang kosong!'); 
@@ -585,8 +620,17 @@ async function prosesCheckoutPOS() {
 async function jalankanCetakStruk(invoice, totAkhir) { 
   let subtotalPrint = 0; state.keranjangPOS.forEach(i => subtotalPrint += i.total); let pajakPrint = totAkhir - subtotalPrint;
 
+  // LOGIKA OTOMATIS GANTI NAMA PUSAT JADI CABANG
+  let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
+  if(state.cabang && String(state.cabang).toUpperCase() !== 'PUSAT') {
+      if(namaToko.toUpperCase().includes('PUSAT')) {
+          namaToko = namaToko.replace(/PUSAT/i, state.cabang.toUpperCase());
+      } else {
+          namaToko = namaToko + " " + state.cabang.toUpperCase();
+      }
+  }
+
   if (btCharacteristic) {
-      let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS";
       let teks = `\n${namaToko}\n--------------------------------\nINV: ${invoice}\nTgl: ${new Date().toLocaleString('id-ID')}\n--------------------------------\n`;
       state.keranjangPOS.forEach(i => { teks += `${i.nama}\n${i.qty}x ${i.harga} = ${i.total}\n`; });
       teks += `--------------------------------\nSubtotal: ${formatRp(subtotalPrint)}\n`;
@@ -600,7 +644,6 @@ async function jalankanCetakStruk(invoice, totAkhir) {
   let iframe = document.getElementById('print-iframe'); 
   let doc = iframe.contentWindow.document; 
   let title = state.isSO ? "NOTA PESANAN (SO)" : "Struk Pembayaran"; 
-  let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
   let alamatToko = localStorage.getItem('sanstech_alamat_toko') || "Sistem ERP Distributor"; 
   let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
   let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima kasih atas kunjungan Anda."; 
@@ -677,10 +720,20 @@ function cetakInvoiceRiwayat(inv) {
     let pajakPrint = parseFloat(trx.Pajak || 0);
     let totAkhir = parseFloat(trx.Total_Akhir);
     
+    // LOGIKA OTOMATIS GANTI NAMA PUSAT JADI CABANG SESUAI TRANSAKSI
+    let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
+    let trxCabang = trx.Cabang || state.cabang; 
+    if(trxCabang && String(trxCabang).toUpperCase() !== 'PUSAT') {
+        if(namaToko.toUpperCase().includes('PUSAT')) {
+            namaToko = namaToko.replace(/PUSAT/i, trxCabang.toUpperCase());
+        } else {
+            namaToko = namaToko + " " + trxCabang.toUpperCase();
+        }
+    }
+
     let iframe = document.getElementById('print-iframe'); 
     let doc = iframe.contentWindow.document; 
     let title = String(trx.Status).includes('SO') ? "NOTA PESANAN (SO)" : "INVOICE PEMBAYARAN"; 
-    let namaToko = localStorage.getItem('sanstech_nama_toko') || "SANSTECH POS"; 
     let alamatToko = localStorage.getItem('sanstech_alamat_toko') || "Sistem ERP Distributor"; 
     let headerToko = localStorage.getItem('sanstech_struk_header') || ""; 
     let footerToko = localStorage.getItem('sanstech_struk_footer') || "Terima kasih atas kunjungan Anda."; 
